@@ -216,7 +216,7 @@ mod app {
                     usb_classes.poll();
 
                     match usb_classes.ccid.did_start_processing() {
-                        usbd_ccid::types::Status::ReceivedData(milliseconds) => {
+                        usbd_ccid::Status::ReceivedData(milliseconds) => {
                             c.shared
                                 .ccid_wait_extension_sender
                                 .lock(|ccid_wait_extension_sender| {
@@ -268,7 +268,7 @@ mod app {
             usb_classes.poll();
 
             match usb_classes.ccid.did_start_processing() {
-                usbd_ccid::types::Status::ReceivedData(milliseconds) => {
+                usbd_ccid::Status::ReceivedData(milliseconds) => {
                     // if remaining < 60_000 {
                     //     debug_now!("scheduling CCID wait extension");
                     // }
@@ -348,7 +348,7 @@ mod app {
                 .lock(|ccid_wait_extension_sender| {
                     c.local.ccid_wait_extension_receiver.try_recv().ok();
                     match status {
-                        usbd_ccid::types::Status::ReceivedData(milliseconds) => {
+                        usbd_ccid::Status::ReceivedData(milliseconds) => {
                             ccid_wait_extension_sender.try_send(milliseconds).ok();
                         }
                         _ => {}

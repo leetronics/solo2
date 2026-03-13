@@ -39,18 +39,17 @@ pub struct Basic {
 
 /// Initialized NFC Iso14443 transport
 pub struct Nfc {
-    pub iso14443: Option<nfc_device::Iso14443<board::nfc::NfcChip>>,
+    pub iso14443: Option<nfc_device::Iso14443<'static, board::nfc::NfcChip>>,
 
-    pub contactless_responder:
-        Option<interchange::Responder<apdu_dispatch::interchanges::Contactless>>,
+    pub contactless_responder: Option<apdu_dispatch::interchanges::Responder<'static>>,
 }
 
 /// Initialized USB device + USB classes, Dynamic Clock controller.
 pub struct Usb {
     pub usb_classes: Option<types::UsbClasses>,
 
-    pub contact_responder: Option<interchange::Responder<apdu_dispatch::interchanges::Contact>>,
-    pub ctaphid_responder: Option<interchange::Responder<ctaphid_dispatch::types::HidInterchange>>,
+    pub contact_responder: Option<apdu_dispatch::interchanges::Responder<'static>>,
+    pub ctaphid_responder: Option<ctaphid_dispatch::Responder<'static, { ctaphid_dispatch::DEFAULT_MESSAGE_SIZE }>>,
 }
 
 /// Initialized apdu + ctaphid dispatches

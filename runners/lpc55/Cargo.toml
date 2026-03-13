@@ -23,7 +23,7 @@ defmt = "1.0.1"
 defmt-rtt = "1.1.0"
 delog = "0.1.1"
 heapless = "0.9"
-interchange = "0.2.2"
+interchange = "0.3"
 nb = "1"
 static_cell = "2.1.1"
 usb-device = "0.2.3"
@@ -31,13 +31,19 @@ usb-device = "0.2.3"
 usbd-serial = "0.1.0"
 
 admin-app = { version = "0.1", optional = true }
-apdu-dispatch = "0.1.1"
-ctaphid-dispatch = "0.1.1"
+trussed-staging = { version = "0.3", features = ["hkdf", "fs-info", "manage"] }
+trussed-fs-info = "0.2"
+trussed-hkdf = "0.3"
+trussed-manage = "0.2"
+apdu-dispatch = "0.3"
+ctaphid-dispatch = "0.3"
 ctap-types = "0.1"
-fido-authenticator = { version = "0.1.1", features = ["dispatch"], optional = true }
+fido-authenticator = { version = "0.2", features = ["dispatch"], optional = true }
+# oath-authenticator 0.1.0 is incompatible with new trussed/littlefs2 - needs upgrading
 oath-authenticator = { version = "0.1", features = ["apdu-dispatch"], optional = true }
-piv-authenticator = { git = "https://github.com/solokeys/piv-authenticator", features = ["apdu-dispatch"], optional = true, commit = "1922d6d97ba9ea4800572eea4b8a243ada2bf668" }
+piv-authenticator = { git = "https://github.com/trussed-dev/piv-authenticator", features = ["apdu-dispatch"], optional = true, tag = "v0.5.3" }
 trussed = "0.1"
+trussed-core = "0.1"
 
 # board
 board = { path = "board" }
@@ -48,8 +54,8 @@ ndef-app = { path = "../../components/ndef-app", optional = true }
 provisioner-app = { path = "../../components/provisioner-app", optional = true }
 fm11nc08 = {path = "../../components/fm11nc08"}
 nfc-device = {path = "../../components/nfc-device"}
-usbd-ccid = "0.1.0"
-usbd-ctaphid = "0.1.0"
+usbd-ccid = "0.3"
+usbd-ctaphid = "0.3"
 
 
 # panic
@@ -57,19 +63,21 @@ panic-halt = "1.0.0"
 # panic-semihosting = "0.5.6"
 
 # storage
-littlefs2 = { version = "0.3.2", features = ["c-stubs"] }
+littlefs2 = { version = "0.6", features = ["c-stubs"] }
 
 [features]
 # ndef-app is an annoyance on some mobile platforms
-default = ["admin-app", "fido-authenticator", "ndef-app", "oath-authenticator", "trussed/clients-4"]
+default = ["admin-app", "fido-authenticator", "ndef-app"]
+# oath-authenticator 0.1.0 is incompatible with new trussed; disabled until upgraded
+# oath = ["oath-authenticator"]
 
 # develop = ["no-encrypted-storage", "no-buttons", "no-reset-time-window"]
 # develop = ["no-encrypted-storage", "no-reset-time-window"]
 # develop = ["no-encrypted-storage", "no-buttons"]
-develop = ["no-encrypted-storage", "trussed/clients-4"]
+develop = ["no-encrypted-storage"]
 
-develop-piv = ["develop", "piv-authenticator", "trussed/clients-5"]
-develop-provisioner = ["develop", "provisioner-app", "trussed/clients-5"]
+develop-piv = ["develop", "piv-authenticator"]
+develop-provisioner = ["develop", "provisioner-app"]
 
 # Do not use encryption for the filesystem
 no-encrypted-storage = []
@@ -119,7 +127,12 @@ opt-level = 2
 # [profile.release.package.nisty]
 # opt-level = 2
 
-# Littlefs2 needs to be patched to deal with a bug in the lookahead buffer.
-# This can be undone once we can move away from littlefs2 0.3.2
 [patch.crates-io]
-littlefs2 = {path = "vendor/littlefs2"}
+trussed = { git = "https://github.com/trussed-dev/trussed.git", rev = "e107ed315a07dc6c992fac39d542e847cc3a1b6c" }
+admin-app = { git = "https://github.com/Nitrokey/admin-app.git", tag = "v0.1.0-nitrokey.20" }
+littlefs2 = { git = "https://github.com/trussed-dev/littlefs2.git", tag = "v0.6.1-nitrokey.1" }
+littlefs2-sys = { git = "https://github.com/trussed-dev/littlefs2-sys.git", tag = "v0.3.1-nitrokey.1" }
+# Force both trussed and littlefs2 to use the same littlefs2-core (resolves DynFilesystem version mismatch)
+littlefs2-core = { git = "https://github.com/trussed-dev/littlefs2.git", tag = "v0.6.1-nitrokey.1" }
+# Extension backends needed by fido-authenticator 0.2 (FsInfoClient, HkdfClient)
+trussed-staging = { git = "https://github.com/trussed-dev/trussed-staging.git", tag = "v0.3.3" }

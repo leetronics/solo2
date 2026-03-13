@@ -13,7 +13,6 @@ use hal::typestates::pin::state::Gpio;
 use static_cell::StaticCell;
 use usb_device::device::{UsbDeviceBuilder, UsbVidPid};
 
-use interchange::Interchange;
 use trussed::platform::UserInterface;
 
 use board::traits::buttons;
@@ -23,6 +22,15 @@ use board::traits::rgb_led::RgbLed;
 use crate::{build_constants, clock_controller, types};
 
 pub mod stages;
+
+/// Static APDU interchange channels (contactless = NFC, contact = USB/CCID).
+static NFC_APDU_CHANNEL: apdu_dispatch::interchanges::Channel =
+    apdu_dispatch::interchanges::Channel::new();
+static USB_APDU_CHANNEL: apdu_dispatch::interchanges::Channel =
+    apdu_dispatch::interchanges::Channel::new();
+/// Static CTAPHID channel.
+static CTAPHID_CHANNEL: ctaphid_dispatch::Channel<{ ctaphid_dispatch::DEFAULT_MESSAGE_SIZE }> =
+    ctaphid_dispatch::Channel::new();
 
 pub trait State {}
 pub struct Booted;
@@ -455,10 +463,11 @@ impl Initializer {
             None
         };
 
-        let mut iso14443: Option<nfc_device::Iso14443<board::nfc::NfcChip>> = None;
+        let mut iso14443: Option<types::Iso14443> = None;
 
         let (contactless_requester, contactless_responder) =
-            apdu_dispatch::interchanges::Contactless::claim()
+            NFC_APDU_CHANNEL
+                .split()
                 .expect("could not setup iso14443 ApduInterchange");
 
         if nfc_chip.is_some() {
@@ -499,11 +508,14 @@ impl Initializer {
         let pmc = &mut self.pmc;
         let anactrl = &mut self.anactrl;
 
-        let (contact_requester, contact_responder) = apdu_dispatch::interchanges::Contact::claim()
-            .expect("could not setup ccid ApduInterchange");
+        let (contact_requester, contact_responder) =
+            USB_APDU_CHANNEL
+                .split()
+                .expect("could not setup ccid ApduInterchange");
 
         let (ctaphid_requester, ctaphid_responder) =
-            ctaphid_dispatch::types::HidInterchange::claim()
+            CTAPHID_CHANNEL
+                .split()
                 .expect("could not setup HidInterchange");
 
         info!(
@@ -682,75 +694,108 @@ impl Initializer {
             "mount start {} ms",
             basic_stage.perf_timer.elapsed().0 / 1000
         );
+
+        // Convert all refs to raw pointers to allow retry after formatting.
+        // Only one derived &mut ref is live at a time (safe by construction).
         static INTERNAL_STORAGE: StaticCell<types::FlashStorage> = StaticCell::new();
-        let internal_storage = INTERNAL_STORAGE.init(filesystem);
+        let internal_storage = INTERNAL_STORAGE.init(filesystem) as *mut types::FlashStorage;
         static INTERNAL_FS_ALLOC: StaticCell<Allocation<types::FlashStorage>> = StaticCell::new();
-        let internal_fs_alloc = INTERNAL_FS_ALLOC.init(Filesystem::allocate());
+        let internal_fs_alloc =
+            INTERNAL_FS_ALLOC.init(Filesystem::allocate()) as *mut Allocation<types::FlashStorage>;
 
         static EXTERNAL_STORAGE: StaticCell<ExternalStorage> = StaticCell::new();
-        let external_storage = EXTERNAL_STORAGE.init(ExternalStorage::new());
+        let external_storage =
+            EXTERNAL_STORAGE.init(ExternalStorage::new()) as *mut ExternalStorage;
         static EXTERNAL_FS_ALLOC: StaticCell<Allocation<ExternalStorage>> = StaticCell::new();
-        let external_fs_alloc = EXTERNAL_FS_ALLOC.init(Filesystem::allocate());
+        let external_fs_alloc =
+            EXTERNAL_FS_ALLOC.init(Filesystem::allocate()) as *mut Allocation<ExternalStorage>;
 
         static VOLATILE_STORAGE: StaticCell<VolatileStorage> = StaticCell::new();
-        let volatile_storage: &mut VolatileStorage = VOLATILE_STORAGE.init(VolatileStorage::new());
+        let volatile_storage =
+            VOLATILE_STORAGE.init(VolatileStorage::new()) as *mut VolatileStorage;
         static VOLATILE_FS_ALLOC: StaticCell<Allocation<VolatileStorage>> = StaticCell::new();
-        let volatile_fs_alloc = VOLATILE_FS_ALLOC.init(Filesystem::allocate());
-
-        let store = types::Store::claim().unwrap();
+        let volatile_fs_alloc =
+            VOLATILE_FS_ALLOC.init(Filesystem::allocate()) as *mut Allocation<VolatileStorage>;
 
         if let Some(iso14443) = &mut nfc_stage.iso14443 {
             iso14443.poll();
         }
 
-        // We need to be able to recreate mutable references when retrying the mount with a format
-        // For this, we first convert all existing references to pointers, and then derive new mutable
-        // references from these pointers. As the references of a failed store.mount are not used
-        // after return of that function, this is still sound to do.
-
-        let internal_fs_alloc = internal_fs_alloc as *mut _;
-        let internal_storage = internal_storage as *mut _;
-        let external_fs_alloc = external_fs_alloc as *mut _;
-        let external_storage = external_storage as *mut _;
-        let volatile_fs_alloc = volatile_fs_alloc as *mut _;
-        let volatile_storage = volatile_storage as *mut _;
-
-        let result = store.mount(
+        // Try to mount internal FS without formatting.  If it fails (or format-filesystem
+        // feature is set), format all three filesystems then re-mount.
+        let needs_format = Filesystem::mount(
             unsafe { &mut *internal_fs_alloc },
-            // unsafe { &mut INTERNAL_STORAGE },
             unsafe { &mut *internal_storage },
-            unsafe { &mut *external_fs_alloc },
-            unsafe { &mut *external_storage },
-            unsafe { &mut *volatile_fs_alloc },
-            unsafe { &mut *volatile_storage },
-            // to trash existing data, set to true
-            false,
-        );
+        )
+        .is_err();
 
-        if result.is_err() || cfg!(feature = "format-filesystem") {
-            let rgb = basic_stage.rgb.as_mut().unwrap();
-            rgb.blue(200);
-            rgb.red(200);
-
+        if needs_format || cfg!(feature = "format-filesystem") {
+            if let Some(rgb) = basic_stage.rgb.as_mut() {
+                rgb.blue(200);
+                rgb.red(200);
+            }
             basic_stage.delay_timer.start(300_000.microseconds());
             nb::block!(basic_stage.delay_timer.wait()).ok();
 
             info!("Not yet formatted!  Formatting..");
-            store
-                .mount(
-                    unsafe { &mut *internal_fs_alloc },
-                    // unsafe { &mut INTERNAL_STORAGE },
-                    unsafe { &mut *internal_storage },
-                    unsafe { &mut *external_fs_alloc },
-                    unsafe { &mut *external_storage },
-                    unsafe { &mut *volatile_fs_alloc },
-                    unsafe { &mut *volatile_storage },
-                    // to trash existing data, set to true
-                    true,
-                )
-                .unwrap();
-            rgb.turn_off();
+            Filesystem::format(unsafe { &mut *internal_storage }).unwrap();
+            Filesystem::format(unsafe { &mut *external_storage }).unwrap();
+            Filesystem::format(unsafe { &mut *volatile_storage }).unwrap();
+
+            if let Some(rgb) = basic_stage.rgb.as_mut() {
+                rgb.turn_off();
+            }
         }
+
+        // Final mounts.  Internal was either already formatted or just formatted above.
+        // External and volatile are RAM-based; format on first use if needed.
+        static INTERNAL_FS: StaticCell<Filesystem<'static, types::FlashStorage>> =
+            StaticCell::new();
+        let internal_fs: &'static mut Filesystem<'static, types::FlashStorage> =
+            INTERNAL_FS.init(
+                Filesystem::mount(
+                    unsafe { &mut *internal_fs_alloc },
+                    unsafe { &mut *internal_storage },
+                )
+                .unwrap(),
+            );
+
+        static EXTERNAL_FS: StaticCell<Filesystem<'static, ExternalStorage>> = StaticCell::new();
+        let external_fs: &'static mut Filesystem<'static, ExternalStorage> = EXTERNAL_FS.init({
+            match Filesystem::mount(
+                unsafe { &mut *external_fs_alloc },
+                unsafe { &mut *external_storage },
+            ) {
+                Ok(fs) => fs,
+                Err(_) => {
+                    Filesystem::format(unsafe { &mut *external_storage }).unwrap();
+                    Filesystem::mount(
+                        unsafe { &mut *external_fs_alloc },
+                        unsafe { &mut *external_storage },
+                    )
+                    .unwrap()
+                }
+            }
+        });
+
+        static VOLATILE_FS: StaticCell<Filesystem<'static, VolatileStorage>> = StaticCell::new();
+        let volatile_fs: &'static mut Filesystem<'static, VolatileStorage> = VOLATILE_FS.init({
+            match Filesystem::mount(
+                unsafe { &mut *volatile_fs_alloc },
+                unsafe { &mut *volatile_storage },
+            ) {
+                Ok(fs) => fs,
+                Err(_) => {
+                    Filesystem::format(unsafe { &mut *volatile_storage }).unwrap();
+                    Filesystem::mount(
+                        unsafe { &mut *volatile_fs_alloc },
+                        unsafe { &mut *volatile_storage },
+                    )
+                    .unwrap()
+                }
+            }
+        });
+
         info!("mount end {} ms", basic_stage.perf_timer.elapsed().0 / 1000);
 
         // return to slow freq
@@ -768,6 +813,8 @@ impl Initializer {
 
         // Cancel any possible outstanding use in delay timer
         basic_stage.delay_timer.cancel().ok();
+
+        let store = types::RunnerStore::new(internal_fs, external_fs, volatile_fs);
 
         stages::Filesystem {
             store,
@@ -804,9 +851,9 @@ impl Initializer {
         let rng = flash_stage.rng.take().unwrap();
         let store = filesystem_stage.store;
         let board = types::Board::new(rng, store, solobee_interface);
-        let trussed = trussed::service::Service::new(board);
+        let service = trussed::service::Service::with_dispatch(board, types::Dispatch::default());
 
-        trussed
+        types::Trussed::new(service)
     }
 
     #[inline(never)]
