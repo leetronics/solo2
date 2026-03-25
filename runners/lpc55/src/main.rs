@@ -201,19 +201,14 @@ mod app {
                 _ => {}
             }
 
-            if c.shared
-                .apps
-                .ctaphid_dispatch(|apps| c.shared.ctaphid_dispatch.poll(apps))
-            {
-                rtic::pend(USB_INTERRUPT);
-            }
-
             c.shared.usb_classes.lock(|usb_classes_maybe| {
                 if usb_classes_maybe.is_some() {
                     let usb_classes = usb_classes_maybe.as_mut().unwrap();
 
-                    usb_classes.ctaphid.check_timeout(time / 1000);
+                    // Poll USB first so data is available before dispatching
                     usb_classes.poll();
+
+                    usb_classes.ctaphid.check_timeout(time / 1000);
 
                     match usb_classes.ccid.did_start_processing() {
                         usbd_ccid::Status::ReceivedData(milliseconds) => {
@@ -226,7 +221,6 @@ mod app {
                         }
                         _ => {}
                     }
-
                     match usb_classes.ctaphid.did_start_processing() {
                         usbd_ctaphid::types::Status::ReceivedData(milliseconds) => {
                             c.shared
@@ -240,6 +234,17 @@ mod app {
                     }
                 }
             });
+
+            // Poll CTAP HID dispatch OUTSIDE the usb_classes lock.
+            // ctaphid_dispatch.poll() may trigger a trussed syscall which pends OS_EVENT.
+            // If called inside usb_classes.lock(), the resulting critical section would
+            // prevent OS_EVENT from running, causing a deadlock.
+            if c.shared
+                .apps
+                .ctaphid_dispatch(|apps| c.shared.ctaphid_dispatch.poll(apps))
+            {
+                rtic::pend(USB_INTERRUPT);
+            }
         }
     }
 
@@ -252,26 +257,19 @@ mod app {
     /// Manages all traffic on the USB bus.
     #[task(binds = USB1, shared = [usb_classes, ccid_wait_extension_sender, ctaphid_keep_alive_sender], priority=6)]
     fn usb(mut c: usb::Context) {
-        // let remaining = msp() - 0x2000_0000;
-        // if remaining < 100_000 {
-        //     debug_now!("USB interrupt: remaining stack size: {} bytes", remaining);
-        // }
         let usb = unsafe { hal::raw::Peripherals::steal().USB1 };
-        // let before = Instant::now();
+        let intstat = usb.intstat.read().bits();
+        // Log non-SOF USB interrupts (SOF = bit 30, dev_status = bit 31)
+        if intstat & 0x0FFF_FFFF != 0 {
+            defmt::debug!("USB interrupt: intstat={:08x}", intstat);
+        }
         c.shared.usb_classes.lock(|usb_classes_maybe| {
             let usb_classes = usb_classes_maybe.as_mut().unwrap();
 
-            //////////////
-            // if remaining < 60_000 {
-            //     debug_now!("polling usb classes");
-            // }
             usb_classes.poll();
 
             match usb_classes.ccid.did_start_processing() {
                 usbd_ccid::Status::ReceivedData(milliseconds) => {
-                    // if remaining < 60_000 {
-                    //     debug_now!("scheduling CCID wait extension");
-                    // }
                     c.shared
                         .ccid_wait_extension_sender
                         .lock(|ccid_wait_extension_sender| {
@@ -283,9 +281,6 @@ mod app {
             }
             match usb_classes.ctaphid.did_start_processing() {
                 usbd_ctaphid::types::Status::ReceivedData(milliseconds) => {
-                    // if remaining < 60_000 {
-                    //     debug_now!("scheduling CTAPHID wait extension");
-                    // }
                     c.shared
                         .ctaphid_keep_alive_sender
                         .lock(|ctaphid_keep_alive_sender| {
@@ -296,7 +291,6 @@ mod app {
                 _ => {}
             }
         });
-        //////////////
 
         // let after = Instant::now();
         // let length = (after - before).as_cycles();
