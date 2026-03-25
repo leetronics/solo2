@@ -9,25 +9,26 @@ chacha20 = { version = "0.7", features = ["rng"] }
 delog = "0.1.0"
 embedded-hal = { version = "0.2", features = ["unproven"] }
 generic-array = "0.14.3"
-interchange = "0.2.2"
+interchange = "0.3"
 nb = "1"
 
 admin-app = "0.1"
-apdu-dispatch = "0.1.1"
+apdu-dispatch = "0.3"
 ctap-types = "0.1"
-ctaphid-dispatch = "0.1.1"
-fido-authenticator = { version = "0.1.1", features = ["dispatch"], optional = true }
-piv-authenticator = { git = "https://github.com/solokeys/piv-authenticator" }
-trussed = { version = "0.1", features = ["clients-3"] }
+ctaphid-dispatch = "0.2"
+fido-authenticator = { version = "0.2", features = ["dispatch"], optional = true }
+piv-authenticator = { git = "https://github.com/trussed-dev/piv-authenticator", tag = "v0.5.3" }
+trussed = "0.1"
+trussed-core = "0.1"
 
 # components
-usbd-ccid = "0.1.0"
-usbd-ctaphid = "0.1.0"
+usbd-ccid = "0.2"
+usbd-ctaphid = "0.3"
 nfc-device = {path = "./../../components/nfc-device"}
 ndef-app = {path = "./../../components/ndef-app"}
 
 # storage
-littlefs2 = "0.3.1"
+littlefs2 = "0.6"
 
 [features]
 default = []
@@ -45,7 +46,11 @@ log-debug = []
 log-warn = []
 log-error = []
 
-# patch dependencies like so to test local changes
+[patch.crates-io]
+trussed = { git = "https://github.com/trussed-dev/trussed.git", rev = "e107ed315a07dc6c992fac39d542e847cc3a1b6c" }
+admin-app = { git = "https://github.com/Nitrokey/admin-app.git", tag = "v0.1.0-nitrokey.20" }
+littlefs2 = { git = "https://github.com/trussed-dev/littlefs2.git", tag = "v0.6.1-nitrokey.1" }
+littlefs2-sys = { git = "https://github.com/trussed-dev/littlefs2-sys.git", tag = "v0.3.1-nitrokey.1" }
 
 [profile.release]
 codegen-units = 1
