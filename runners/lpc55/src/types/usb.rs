@@ -7,11 +7,18 @@ pub type EnabledUsbPeripheral = hal::peripherals::usbhs::EnabledUsbhsDevice;
 pub type EnabledUsbPeripheral = hal::peripherals::usbfs::EnabledUsbfsDevice;
 
 pub type CcidClass = usbd_ccid::Ccid<
+    'static,
+    'static,
     UsbBus<EnabledUsbPeripheral>,
-    apdu_dispatch::interchanges::Contact,
     { apdu_dispatch::interchanges::SIZE },
 >;
-pub type CtapHidClass = usbd_ctaphid::CtapHid<'static, UsbBus<EnabledUsbPeripheral>>;
+pub type CtapHidClass = usbd_ctaphid::CtapHid<
+    'static,
+    'static,
+    'static,
+    UsbBus<EnabledUsbPeripheral>,
+    { ctaphid_dispatch::DEFAULT_MESSAGE_SIZE },
+>;
 // pub type KeyboardClass = usbd_hid::hid_class::HIDClass<'static, UsbBus<EnabledUsbPeripheral>>;
 pub type SerialClass = usbd_serial::SerialPort<'static, UsbBus<EnabledUsbPeripheral>>;
 

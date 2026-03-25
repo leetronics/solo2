@@ -124,6 +124,7 @@ RGB: RgbLed,
                 // ui::Status::WaitingForUserPresence => ORANGE,
                 ui::Status::WaitingForUserPresence => BLUE,
                 ui::Status::Error => RED,
+                _ => BLACK,
             });
         }
     }
