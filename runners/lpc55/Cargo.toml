@@ -36,11 +36,16 @@ trussed-staging = { git = "https://github.com/trussed-dev/trussed-staging.git", 
 trussed-fs-info = "0.2"
 trussed-hkdf = "0.3"
 trussed-manage = "0.2"
+trussed-auth = "0.4"
+trussed-auth-backend = { git = "https://github.com/trussed-dev/trussed-auth", tag = "v0.4.0" }
 apdu-dispatch = "0.3"
 ctaphid-dispatch = "0.3"
 ctap-types = "0.4"
 fido-authenticator = { version = "0.2", features = ["dispatch"], optional = true }
 oath-authenticator = { version = "0.1", features = ["apdu-dispatch"], optional = true }
+# OATH/TOTP/HOTP support via trussed-secrets-app (Nitrokey's implementation, Yubico OATH AID)
+# OATH via APDU only (not ctaphid-dispatch: ctaphid-app 0.1.0-rc.1 conflicts with 0.1.0)
+secrets-app = { git = "https://github.com/Nitrokey/trussed-secrets-app", tag = "v0.14.0", features = ["apdu-dispatch"], optional = true }
 piv-authenticator = { git = "https://github.com/trussed-dev/piv-authenticator", features = ["apdu-dispatch"], optional = true, tag = "v0.5.3" }
 trussed = "0.1"
 trussed-core = "0.1"
@@ -68,6 +73,8 @@ littlefs2 = { version = "0.6", features = ["c-stubs"] }
 [features]
 # ndef-app is an annoyance on some mobile platforms
 default = ["admin-app", "fido-authenticator", "ndef-app"]
+# OATH/TOTP/HOTP via secrets-app (replaces incompatible oath-authenticator 0.1)
+oath = ["dep:secrets-app"]
 
 # develop = ["no-encrypted-storage", "no-buttons", "no-reset-time-window"]
 # develop = ["no-encrypted-storage", "no-reset-time-window"]
@@ -76,6 +83,7 @@ develop = ["no-encrypted-storage", "log-defmt"]
 
 develop-piv = ["develop", "piv-authenticator"]
 develop-provisioner = ["develop", "provisioner-app"]
+develop-secrets = ["develop", "oath"]
 
 # Do not use encryption for the filesystem
 no-encrypted-storage = []

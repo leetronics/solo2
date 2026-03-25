@@ -11,6 +11,8 @@ use trussed::platform;
 use trussed::serde_extensions::{ExtensionDispatch, ExtensionId, ExtensionImpl};
 use trussed::store::DynFilesystem;
 use trussed::types::CoreContext;
+use trussed_auth::AuthExtension;
+use trussed_auth_backend::{AuthBackend, AuthContext, FilesystemLayout};
 use trussed_fs_info::FsInfoExtension;
 use trussed_hkdf::HkdfExtension;
 use trussed_manage::ManageExtension;
@@ -250,17 +252,21 @@ platform!(Board,
     UI: board::trussed::UserInterface<ThreeButtons, RgbLed>,
 );
 
-/// Extension dispatch type providing FsInfo, Hkdf, and Manage extensions via trussed-staging.
+/// Extension dispatch type providing FsInfo, Hkdf, Manage (via trussed-staging) and
+/// Auth (via trussed-auth-backend) extensions.
 /// Required because fido-authenticator 0.2 unconditionally needs FsInfoClient + HkdfClient,
-/// and admin-app requires ManageClient.
+/// admin-app requires ManageClient, and secrets-app requires AuthClient.
 pub struct Dispatch {
     staging_backend: StagingBackend,
+    auth_backend: AuthBackend,
 }
 
 impl Default for Dispatch {
     fn default() -> Self {
         Self {
             staging_backend: StagingBackend::new(),
+            // V0 layout: new device, no existing auth data to migrate
+            auth_backend: AuthBackend::new(trussed::types::Location::Internal, FilesystemLayout::V0),
         }
     }
 }
@@ -268,10 +274,12 @@ impl Default for Dispatch {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BackendIds {
     StagingBackend,
+    Auth,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExtensionIds {
+    Auth = 0,
     Hkdf = 1,
     Manage = 2,
     FsInfo = 4,
@@ -287,12 +295,18 @@ impl TryFrom<u8> for ExtensionIds {
     type Error = trussed::Error;
     fn try_from(id: u8) -> Result<Self, trussed::Error> {
         match id {
+            0 => Ok(Self::Auth),
             1 => Ok(Self::Hkdf),
             2 => Ok(Self::Manage),
             4 => Ok(Self::FsInfo),
             _ => Err(trussed::Error::FunctionNotSupported),
         }
     }
+}
+
+impl ExtensionId<AuthExtension> for Dispatch {
+    type Id = ExtensionIds;
+    const ID: ExtensionIds = ExtensionIds::Auth;
 }
 
 impl ExtensionId<FsInfoExtension> for Dispatch {
@@ -310,9 +324,16 @@ impl ExtensionId<ManageExtension> for Dispatch {
     const ID: ExtensionIds = ExtensionIds::Manage;
 }
 
+/// Combined context for all backends in the dispatch.
+#[derive(Default)]
+pub struct RunnerContext {
+    pub auth: AuthContext,
+    pub staging: StagingContext,
+}
+
 impl ExtensionDispatch for Dispatch {
     type BackendId = BackendIds;
-    type Context = StagingContext;
+    type Context = RunnerContext;
     type ExtensionId = ExtensionIds;
 
     fn core_request<P: trussed::platform::Platform>(
@@ -326,7 +347,13 @@ impl ExtensionDispatch for Dispatch {
         match backend {
             BackendIds::StagingBackend => self.staging_backend.request(
                 &mut ctx.core,
-                &mut ctx.backends,
+                &mut ctx.backends.staging,
+                request,
+                resources,
+            ),
+            BackendIds::Auth => self.auth_backend.request(
+                &mut ctx.core,
+                &mut ctx.backends.auth,
                 request,
                 resources,
             ),
@@ -342,24 +369,30 @@ impl ExtensionDispatch for Dispatch {
         resources: &mut trussed::service::ServiceResources<P>,
     ) -> Result<trussed::api::reply::SerdeExtension, trussed::Error> {
         match extension {
+            ExtensionIds::Auth => self.auth_backend.extension_request_serialized(
+                &mut ctx.core,
+                &mut ctx.backends.auth,
+                request,
+                resources,
+            ),
             ExtensionIds::FsInfo => ExtensionImpl::<FsInfoExtension>::extension_request_serialized(
                 &mut self.staging_backend,
                 &mut ctx.core,
-                &mut ctx.backends,
+                &mut ctx.backends.staging,
                 request,
                 resources,
             ),
             ExtensionIds::Hkdf => ExtensionImpl::<HkdfExtension>::extension_request_serialized(
                 &mut self.staging_backend,
                 &mut ctx.core,
-                &mut ctx.backends,
+                &mut ctx.backends.staging,
                 request,
                 resources,
             ),
             ExtensionIds::Manage => ExtensionImpl::<ManageExtension>::extension_request_serialized(
                 &mut self.staging_backend,
                 &mut ctx.core,
-                &mut ctx.backends,
+                &mut ctx.backends.staging,
                 request,
                 resources,
             ),
@@ -383,15 +416,23 @@ impl Default for Syscall {
 }
 
 /// Service endpoint type for our Dispatch.
-pub type TrussedEndpoint = ServiceEndpoint<'static, BackendIds, StagingContext>;
+pub type TrussedEndpoint = ServiceEndpoint<'static, BackendIds, RunnerContext>;
 /// Client type for apps — parameterized with Dispatch to get extension support.
 pub type TrussedClient = trussed::ClientImplementation<'static, Syscall, Dispatch>;
 
-/// Backends for all apps: StagingBackend (FsInfo, Hkdf, Manage) + Core.
+/// Backends for most apps: StagingBackend (FsInfo, Hkdf, Manage) + Core.
 /// BackendId::Core must be present or all standard crypto/filesystem calls return
 /// RequestNotAvailable, causing syscall!() to panic and the device to freeze.
 static STAGING_BACKENDS: [BackendId<BackendIds>; 2] = [
     BackendId::Custom(BackendIds::StagingBackend),
+    BackendId::Core,
+];
+
+/// Backends for apps requiring Auth extension (secrets-app).
+/// Auth must come first so AuthClient calls reach AuthBackend.
+#[cfg(feature = "oath")]
+static AUTH_BACKENDS: [BackendId<BackendIds>; 2] = [
+    BackendId::Custom(BackendIds::Auth),
     BackendId::Core,
 ];
 
@@ -470,6 +511,8 @@ pub type AdminApp = admin_app::App<TrussedClient, board::Reboot, AdminStatus>;
 pub type PivApp = piv_authenticator::Authenticator<TrussedClient, { apdu_dispatch::command::SIZE }>;
 #[cfg(feature = "oath-authenticator")]
 pub type OathApp = oath_authenticator::Authenticator<TrussedClient>;
+#[cfg(feature = "oath")]
+pub type SecretsApp = secrets_app::Authenticator<TrussedClient>;
 #[cfg(feature = "fido-authenticator")]
 pub type FidoApp = fido_authenticator::Authenticator<fido_authenticator::Conforming, TrussedClient>;
 #[cfg(feature = "fido-authenticator")]
@@ -513,6 +556,11 @@ static PROVISIONER_TRUSSED_CHANNEL: TrussedChannel = TrussedChannel::new();
 #[cfg(feature = "provisioner-app")]
 static PROVISIONER_INTERRUPT: InterruptFlag = InterruptFlag::new();
 
+#[cfg(feature = "oath")]
+static SECRETS_TRUSSED_CHANNEL: TrussedChannel = TrussedChannel::new();
+#[cfg(feature = "oath")]
+static SECRETS_INTERRUPT: InterruptFlag = InterruptFlag::new();
+
 /// Helper: split a static channel, register the service endpoint with `trussed`,
 /// and return the client end.
 fn make_client(
@@ -520,10 +568,11 @@ fn make_client(
     client_id: &'static littlefs2::path::Path,
     trussed: &mut Trussed,
     interrupt: Option<&'static InterruptFlag>,
+    backends: &'static [BackendId<BackendIds>],
 ) -> TrussedClient {
     let (req, resp) = channel.split().expect("channel already split");
     let context = CoreContext::with_interrupt(littlefs2::path::PathBuf::from(client_id), interrupt);
-    let ep = ServiceEndpoint::new(resp, context, &STAGING_BACKENDS);
+    let ep = ServiceEndpoint::new(resp, context, backends);
     trussed.add_endpoint(ep);
     TrussedClient::new(req, Syscall::default(), interrupt)
 }
@@ -541,6 +590,8 @@ pub struct Apps {
     pub fido: FidoApp,
     #[cfg(feature = "oath-authenticator")]
     pub oath: OathApp,
+    #[cfg(feature = "oath")]
+    pub secrets: SecretsApp,
     #[cfg(feature = "ndef-app")]
     pub ndef: NdefApp,
     #[cfg(feature = "piv-authenticator")]
@@ -561,6 +612,7 @@ impl Apps {
                 littlefs2::path!("admin"),
                 trussed,
                 Some(&ADMIN_INTERRUPT),
+                &STAGING_BACKENDS,
             );
             AdminApp::with_default_config(
                 client,
@@ -579,6 +631,7 @@ impl Apps {
                 littlefs2::path!("fido"),
                 trussed,
                 Some(&FIDO_INTERRUPT),
+                &STAGING_BACKENDS,
             );
             fido_authenticator::Authenticator::new(
                 client,
@@ -600,6 +653,7 @@ impl Apps {
                 littlefs2::path!("oath"),
                 trussed,
                 Some(&OATH_INTERRUPT),
+                &STAGING_BACKENDS,
             );
             OathApp::new(client)
         };
@@ -611,8 +665,31 @@ impl Apps {
                 littlefs2::path!("piv"),
                 trussed,
                 Some(&PIV_INTERRUPT),
+                &STAGING_BACKENDS,
             );
             PivApp::new(client)
+        };
+
+        #[cfg(feature = "oath")]
+        let secrets = {
+            let client = make_client(
+                &SECRETS_TRUSSED_CHANNEL,
+                littlefs2::path!("secrets"),
+                trussed,
+                Some(&SECRETS_INTERRUPT),
+                &AUTH_BACKENDS,
+            );
+            let uuid = hal::uuid();
+            SecretsApp::new(
+                client,
+                secrets_app::Options::new(
+                    trussed::types::Location::Internal,
+                    0, // custom_status_reverse_hotp_success
+                    1, // custom_status_reverse_hotp_error
+                    [uuid[0], uuid[1], uuid[2], uuid[3]],
+                    50, // max_resident_credentials_allowed
+                ),
+            )
         };
 
         #[cfg(feature = "ndef-app")]
@@ -625,6 +702,7 @@ impl Apps {
                 littlefs2::path!("attn"),
                 trussed,
                 Some(&PROVISIONER_INTERRUPT),
+                &STAGING_BACKENDS,
             );
             let ProvisionerNonPortable {
                 store,
@@ -641,6 +719,8 @@ impl Apps {
             fido,
             #[cfg(feature = "oath-authenticator")]
             oath,
+            #[cfg(feature = "oath")]
+            secrets,
             #[cfg(feature = "ndef-app")]
             ndef,
             #[cfg(feature = "piv-authenticator")]
@@ -662,6 +742,8 @@ impl Apps {
             &mut self.piv,
             #[cfg(feature = "oath-authenticator")]
             &mut self.oath,
+            #[cfg(feature = "oath")]
+            &mut self.secrets,
             #[cfg(feature = "fido-authenticator")]
             &mut self.fido,
             #[cfg(feature = "admin-app")]
