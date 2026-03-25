@@ -15,8 +15,6 @@ use usb_device::device::UsbVidPid; // re-export for convenience
 #[allow(unused_imports)]
 use hal::drivers::timer::Elapsed;
 
-use types::Board;
-
 pub mod initializer;
 pub mod types;
 

@@ -4,7 +4,7 @@ use apdu_dispatch::interchanges;
 use defmt::{info, debug};
 use embedded_time::duration::Milliseconds;
 use heapless::Vec;
-use interchange::Requester;
+use interchange;
 
 use crate::traits::nfc;
 
@@ -87,7 +87,7 @@ impl Block {
 
 /// Iso14443 device follows related rules for PICC in iso14443-4.
 /// Rules C - E and rules 9 - 13.
-pub struct Iso14443<DEV: nfc::Device> {
+pub struct Iso14443<'pipe, DEV: nfc::Device> {
     device: DEV,
 
     state: Iso14443State,
@@ -101,14 +101,14 @@ pub struct Iso14443<DEV: nfc::Device> {
 
     buffer: interchanges::Data,
 
-    interchange: Requester<interchanges::Contactless>,
+    interchange: interchanges::Requester<'pipe>,
 }
 
-impl<DEV> Iso14443<DEV>
+impl<'pipe, DEV> Iso14443<'pipe, DEV>
 where
     DEV: nfc::Device
 {
-    pub fn new(device: DEV, interchange: Requester<interchanges::Contactless>) -> Self {
+    pub fn new(device: DEV, interchange: interchanges::Requester<'pipe>) -> Self {
         Self {
             device: device,
             state: Iso14443State::Receiving,
@@ -117,7 +117,7 @@ where
             wtx_requested: false,
             block_num: true,
 
-            buffer: Vec::new(),
+            buffer: interchanges::Data::new(),
 
             interchange: interchange,
         }
@@ -357,7 +357,7 @@ where
         self.buffer.clear();
         if command.is_ok() {
             if self.interchange.request(
-                command.as_ref().unwrap()
+                command.unwrap()
             ).is_ok() {
                 Ok(())
             } else {
@@ -403,7 +403,6 @@ where
 
 
             if let Some(msg) = self.interchange.take_response() {
-                let msg = msg.clone();
                 // if let Some(last_iblock_recv) = self.last_iblock_recv {
                     info!("send!");
                     let (frame, data_used) = self.construct_iblock(&msg);
