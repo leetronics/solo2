@@ -55,7 +55,7 @@ provisioner-app = { path = "../../components/provisioner-app", optional = true }
 fm11nc08 = {path = "../../components/fm11nc08"}
 nfc-device = {path = "../../components/nfc-device"}
 usbd-ccid = "0.3"
-usbd-ctaphid = "0.3"
+usbd-ctaphid = { version = "0.3", features = ["log-info", "defmt-logging"] }
 
 
 # panic
@@ -72,7 +72,7 @@ default = ["admin-app", "fido-authenticator", "ndef-app"]
 # develop = ["no-encrypted-storage", "no-buttons", "no-reset-time-window"]
 # develop = ["no-encrypted-storage", "no-reset-time-window"]
 # develop = ["no-encrypted-storage", "no-buttons"]
-develop = ["no-encrypted-storage"]
+develop = ["no-encrypted-storage", "log-defmt"]
 
 develop-piv = ["develop", "piv-authenticator"]
 develop-provisioner = ["develop", "provisioner-app"]
@@ -134,3 +134,5 @@ littlefs2-sys = { git = "https://github.com/trussed-dev/littlefs2-sys.git", tag 
 littlefs2-core = { git = "https://github.com/trussed-dev/littlefs2.git", tag = "v0.6.1-nitrokey.1" }
 # Extension backends needed by fido-authenticator 0.2 (FsInfoClient, HkdfClient)
 trussed-staging = { git = "https://github.com/trussed-dev/trussed-staging.git", tag = "v0.3.3" }
+# Fix WouldBlock retry for single-packet responses (PING race condition)
+usbd-ctaphid = { git = "https://github.com/leetronics/usbd-ctaphid.git", branch = "v0.3-wouldblock-fix" }
