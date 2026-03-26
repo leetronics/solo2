@@ -13,10 +13,13 @@ use trussed::store::DynFilesystem;
 use trussed::types::CoreContext;
 use trussed_auth::AuthExtension;
 use trussed_auth_backend::{AuthBackend, AuthContext, FilesystemLayout};
+use trussed_chunked::ChunkedExtension;
 use trussed_fs_info::FsInfoExtension;
 use trussed_hkdf::HkdfExtension;
+use trussed_hpke::HpkeExtension;
 use trussed_manage::ManageExtension;
 use trussed_staging::{StagingBackend, StagingContext};
+use trussed_wrap_key_to_file::WrapKeyToFileExtension;
 
 // Compile time assertion that build_constants::CONFIG_FILESYSTEM_BOUNDARY is 512 byte aligned.
 const _FILESYSTEM_ALIGNED_CHECK: usize = ((core::mem::size_of::<
@@ -209,7 +212,13 @@ const_ram_storage!(
 
 // minimum: 2 blocks
 // TODO: make this optional
+// piv-authenticator hardcodes Location::External for PUK_USER_KEY_BACKUP in init_pins,
+// requiring at least 3 blocks (2 metadata + 1 data). Without PIV, 2 blocks suffices
+// as nothing writes to External storage.
+#[cfg(not(feature = "piv-authenticator"))]
 const_ram_storage!(ExternalStorage, 1024);
+#[cfg(feature = "piv-authenticator")]
+const_ram_storage!(ExternalStorage, 8192);
 
 /// Store implementation using three mounted littlefs2 filesystems.
 #[derive(Clone, Copy)]
@@ -266,7 +275,10 @@ impl Default for Dispatch {
         Self {
             staging_backend: StagingBackend::new(),
             // V0 layout: new device, no existing auth data to migrate
-            auth_backend: AuthBackend::new(trussed::types::Location::Internal, FilesystemLayout::V0),
+            auth_backend: AuthBackend::new(
+                trussed::types::Location::Internal,
+                FilesystemLayout::V0,
+            ),
         }
     }
 }
@@ -282,7 +294,10 @@ pub enum ExtensionIds {
     Auth = 0,
     Hkdf = 1,
     Manage = 2,
+    WrapKeyToFile = 3,
     FsInfo = 4,
+    Hpke = 5,
+    Chunked = 6,
 }
 
 impl From<ExtensionIds> for u8 {
@@ -298,7 +313,10 @@ impl TryFrom<u8> for ExtensionIds {
             0 => Ok(Self::Auth),
             1 => Ok(Self::Hkdf),
             2 => Ok(Self::Manage),
+            3 => Ok(Self::WrapKeyToFile),
             4 => Ok(Self::FsInfo),
+            5 => Ok(Self::Hpke),
+            6 => Ok(Self::Chunked),
             _ => Err(trussed::Error::FunctionNotSupported),
         }
     }
@@ -307,6 +325,11 @@ impl TryFrom<u8> for ExtensionIds {
 impl ExtensionId<AuthExtension> for Dispatch {
     type Id = ExtensionIds;
     const ID: ExtensionIds = ExtensionIds::Auth;
+}
+
+impl ExtensionId<ChunkedExtension> for Dispatch {
+    type Id = ExtensionIds;
+    const ID: ExtensionIds = ExtensionIds::Chunked;
 }
 
 impl ExtensionId<FsInfoExtension> for Dispatch {
@@ -319,9 +342,19 @@ impl ExtensionId<HkdfExtension> for Dispatch {
     const ID: ExtensionIds = ExtensionIds::Hkdf;
 }
 
+impl ExtensionId<HpkeExtension> for Dispatch {
+    type Id = ExtensionIds;
+    const ID: ExtensionIds = ExtensionIds::Hpke;
+}
+
 impl ExtensionId<ManageExtension> for Dispatch {
     type Id = ExtensionIds;
     const ID: ExtensionIds = ExtensionIds::Manage;
+}
+
+impl ExtensionId<WrapKeyToFileExtension> for Dispatch {
+    type Id = ExtensionIds;
+    const ID: ExtensionIds = ExtensionIds::WrapKeyToFile;
 }
 
 /// Combined context for all backends in the dispatch.
@@ -351,12 +384,10 @@ impl ExtensionDispatch for Dispatch {
                 request,
                 resources,
             ),
-            BackendIds::Auth => self.auth_backend.request(
-                &mut ctx.core,
-                &mut ctx.backends.auth,
-                request,
-                resources,
-            ),
+            BackendIds::Auth => {
+                self.auth_backend
+                    .request(&mut ctx.core, &mut ctx.backends.auth, request, resources)
+            }
         }
     }
 
@@ -396,6 +427,31 @@ impl ExtensionDispatch for Dispatch {
                 request,
                 resources,
             ),
+            ExtensionIds::Chunked => {
+                ExtensionImpl::<ChunkedExtension>::extension_request_serialized(
+                    &mut self.staging_backend,
+                    &mut ctx.core,
+                    &mut ctx.backends.staging,
+                    request,
+                    resources,
+                )
+            }
+            ExtensionIds::Hpke => ExtensionImpl::<HpkeExtension>::extension_request_serialized(
+                &mut self.staging_backend,
+                &mut ctx.core,
+                &mut ctx.backends.staging,
+                request,
+                resources,
+            ),
+            ExtensionIds::WrapKeyToFile => {
+                ExtensionImpl::<WrapKeyToFileExtension>::extension_request_serialized(
+                    &mut self.staging_backend,
+                    &mut ctx.core,
+                    &mut ctx.backends.staging,
+                    request,
+                    resources,
+                )
+            }
         }
     }
 }
@@ -431,8 +487,15 @@ static STAGING_BACKENDS: [BackendId<BackendIds>; 2] = [
 /// Backends for apps requiring Auth extension (secrets-app).
 /// Auth must come first so AuthClient calls reach AuthBackend.
 #[cfg(feature = "oath")]
-static AUTH_BACKENDS: [BackendId<BackendIds>; 2] = [
+static AUTH_BACKENDS: [BackendId<BackendIds>; 2] =
+    [BackendId::Custom(BackendIds::Auth), BackendId::Core];
+
+/// Backends for piv-authenticator: needs Auth (PIN management), Staging (Chunked/Hpke/WrapKeyToFile),
+/// and Core (standard crypto/filesystem).
+#[cfg(feature = "piv-authenticator")]
+static PIV_BACKENDS: [BackendId<BackendIds>; 3] = [
     BackendId::Custom(BackendIds::Auth),
+    BackendId::Custom(BackendIds::StagingBackend),
     BackendId::Core,
 ];
 
@@ -508,7 +571,7 @@ impl admin_app::StatusBytes for AdminStatus {
 #[cfg(feature = "admin-app")]
 pub type AdminApp = admin_app::App<TrussedClient, board::Reboot, AdminStatus>;
 #[cfg(feature = "piv-authenticator")]
-pub type PivApp = piv_authenticator::Authenticator<TrussedClient, { apdu_dispatch::command::SIZE }>;
+pub type PivApp = piv_authenticator::Authenticator<TrussedClient>;
 #[cfg(feature = "oath-authenticator")]
 pub type OathApp = oath_authenticator::Authenticator<TrussedClient>;
 #[cfg(feature = "oath")]
@@ -665,9 +728,15 @@ impl Apps {
                 littlefs2::path!("piv"),
                 trussed,
                 Some(&PIV_INTERRUPT),
-                &STAGING_BACKENDS,
+                &PIV_BACKENDS,
             );
-            PivApp::new(client)
+            // Use Internal storage: External is only 1024 bytes (too small for PIV key material).
+            // PIV needs Auth backend for PIN management (has_pin/set_pin/get_pin_key) and
+            // StagingBackend for Chunked/Hpke/WrapKeyToFile extensions.
+            PivApp::new(
+                client,
+                piv_authenticator::Options::default().storage(trussed::types::Location::Internal),
+            )
         };
 
         #[cfg(feature = "oath")]
@@ -765,6 +834,8 @@ impl Apps {
             &mut self.admin,
             #[cfg(feature = "fido-authenticator")]
             &mut self.fido,
+            #[cfg(feature = "oath")]
+            &mut self.secrets,
         ])
     }
 }
