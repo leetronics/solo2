@@ -72,7 +72,7 @@ littlefs2 = { version = "0.6", features = ["c-stubs"] }
 
 [features]
 # ndef-app is an annoyance on some mobile platforms
-default = ["admin-app", "fido-authenticator", "ndef-app", "oath"]
+default = ["admin-app", "fido-authenticator", "ndef-app", "oath", "piv-authenticator"]
 # OATH/TOTP/HOTP via secrets-app (replaces incompatible oath-authenticator 0.1)
 oath = ["dep:secrets-app"]
 
@@ -81,7 +81,6 @@ oath = ["dep:secrets-app"]
 # develop = ["no-encrypted-storage", "no-buttons"]
 develop = ["no-encrypted-storage", "log-defmt"]
 
-develop-piv = ["develop", "piv-authenticator"]
 develop-provisioner = ["develop", "provisioner-app"]
 develop-secrets = ["develop", "oath"]
 
