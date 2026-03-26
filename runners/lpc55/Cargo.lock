@@ -647,7 +647,7 @@ dependencies = [
 [[package]]
 name = "encrypted_container"
 version = "0.1.0"
-source = "git+https://github.com/Nitrokey/trussed-secrets-app?tag=v0.14.0#e72e80491b79962ac0f8030581eca8ba0004a732"
+source = "git+https://github.com/leetronics/solokeys-secrets-app-fork?branch=fix-pin-protection-isolation-v0.14#2887af9b8d2c28891110dd05d8a379303d770611"
 dependencies = [
  "cbor-smol",
  "delog",
@@ -1784,11 +1784,14 @@ dependencies = [
  "trussed",
  "trussed-auth",
  "trussed-auth-backend",
+ "trussed-chunked",
  "trussed-core",
  "trussed-fs-info",
  "trussed-hkdf",
+ "trussed-hpke",
  "trussed-manage",
  "trussed-staging",
+ "trussed-wrap-key-to-file",
  "usb-device",
  "usbd-ccid",
  "usbd-ctaphid",
@@ -1851,13 +1854,14 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
 name = "secrets-app"
-version = "0.14.0"
-source = "git+https://github.com/Nitrokey/trussed-secrets-app?tag=v0.14.0#e72e80491b79962ac0f8030581eca8ba0004a732"
+version = "0.14.1"
+source = "git+https://github.com/leetronics/solokeys-secrets-app-fork?branch=fix-pin-protection-isolation-v0.14#2887af9b8d2c28891110dd05d8a379303d770611"
 dependencies = [
  "apdu-app",
  "bitflags 2.10.0",
  "block-padding",
  "cbor-smol",
+ "ctaphid-app",
  "delog",
  "encrypted_container",
  "flexiber",
@@ -2362,8 +2366,11 @@ name = "trussed-staging"
 version = "0.3.3"
 source = "git+https://github.com/trussed-dev/trussed-staging.git?tag=v0.3.3#2e44cf8ca3e6597880a1e59757228da2d6cce3f1"
 dependencies = [
+ "aead",
+ "chacha20poly1305",
  "delog",
  "digest 0.10.7",
+ "hex-literal 0.4.1",
  "hkdf",
  "littlefs2-core",
  "rand_core",
@@ -2372,9 +2379,12 @@ dependencies = [
  "serde-byte-array",
  "sha2 0.10.9",
  "trussed",
+ "trussed-chunked",
  "trussed-fs-info",
  "trussed-hkdf",
+ "trussed-hpke",
  "trussed-manage",
+ "trussed-wrap-key-to-file",
 ]
 
 [[package]]

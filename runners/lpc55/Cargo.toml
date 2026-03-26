@@ -32,10 +32,13 @@ usb-device = "0.2.3"
 usbd-serial = "0.1.0"
 
 admin-app = { version = "0.1", optional = true }
-trussed-staging = { git = "https://github.com/trussed-dev/trussed-staging.git", tag = "v0.3.3", features = ["hkdf", "fs-info", "manage"] }
+trussed-staging = { git = "https://github.com/trussed-dev/trussed-staging.git", tag = "v0.3.3", features = ["hkdf", "fs-info", "manage", "chunked", "hpke", "wrap-key-to-file"] }
 trussed-fs-info = "0.2"
 trussed-hkdf = "0.3"
 trussed-manage = "0.2"
+trussed-chunked = "0.2"
+trussed-hpke = "0.2"
+trussed-wrap-key-to-file = "0.2"
 trussed-auth = "0.4"
 trussed-auth-backend = { git = "https://github.com/trussed-dev/trussed-auth", tag = "v0.4.0" }
 apdu-dispatch = "0.3"
@@ -44,8 +47,8 @@ ctap-types = "0.4"
 fido-authenticator = { version = "0.2", features = ["dispatch"], optional = true }
 oath-authenticator = { version = "0.1", features = ["apdu-dispatch"], optional = true }
 # OATH/TOTP/HOTP support via trussed-secrets-app (Nitrokey's implementation, Yubico OATH AID)
-# OATH via APDU only (not ctaphid-dispatch: ctaphid-app 0.1.0-rc.1 conflicts with 0.1.0)
-secrets-app = { git = "https://github.com/Nitrokey/trussed-secrets-app", tag = "v0.14.0", features = ["apdu-dispatch"], optional = true }
+# Using fork with PIN protection key isolation fix backported to v0.14
+secrets-app = { git = "https://github.com/leetronics/solokeys-secrets-app-fork", branch = "fix-pin-protection-isolation-v0.14", features = ["apdu-dispatch", "ctaphid"], optional = true }
 piv-authenticator = { git = "https://github.com/trussed-dev/piv-authenticator", features = ["apdu-dispatch"], optional = true, tag = "v0.5.3" }
 trussed = "0.1"
 trussed-core = "0.1"
