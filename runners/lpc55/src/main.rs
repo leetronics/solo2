@@ -192,10 +192,10 @@ mod app {
                 .apps
                 .apdu_dispatch(|apps| c.shared.apdu_dispatch.poll(apps))
             {
-                Some(apdu_dispatch::dispatch::Interface::Contact) => {
+                Some(apdu_dispatch::iso7816::Interface::Contact) => {
                     rtic::pend(USB_INTERRUPT);
                 }
-                Some(apdu_dispatch::dispatch::Interface::Contactless) => {
+                Some(apdu_dispatch::iso7816::Interface::Contactless) => {
                     rtic::pend(NFC_INTERRUPT);
                 }
                 _ => {}

@@ -1,6 +1,6 @@
 use iso7816::{Instruction, Status};
-use apdu_dispatch::{app, response::SIZE as ResponseSize};
-use apdu_dispatch::app::{CommandView, Data, Interface};
+use apdu_dispatch::app;
+use apdu_dispatch::app::{CommandView, Interface, VecView};
 
 pub struct App<'a>{
     reader: &'a [u8]
@@ -38,15 +38,15 @@ impl<'a> iso7816::App for App<'a> {
     }
 }
 
-impl<'a> app::App<ResponseSize> for App<'a> {
+impl<'a> app::App for App<'a> {
 
-    fn select(&mut self, _interface: Interface, _apdu: CommandView<'_>, _reply: &mut Data<ResponseSize>) -> app::Result {
+    fn select(&mut self, _interface: Interface, _apdu: CommandView<'_>, _reply: &mut VecView<u8>) -> app::Result {
         Ok(())
     }
 
     fn deselect(&mut self) {}
 
-    fn call(&mut self, _interface: Interface, apdu: CommandView<'_>, reply: &mut Data<ResponseSize>) -> app::Result {
+    fn call(&mut self, _interface: Interface, apdu: CommandView<'_>, reply: &mut VecView<u8>) -> app::Result {
         let instruction = apdu.instruction();
         let p1 = apdu.p1;
         let p2 = apdu.p2;

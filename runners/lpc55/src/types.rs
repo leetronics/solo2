@@ -585,7 +585,6 @@ pub type NdefApp = ndef_app::App<'static>;
 #[cfg(feature = "provisioner-app")]
 pub type ProvisionerApp = provisioner_app::Provisioner<Store, FlashStorage, TrussedClient>;
 
-use apdu_dispatch::response::SIZE as ResponseSize;
 use apdu_dispatch::App as ApduApp;
 use ctaphid_dispatch::app::App as CtaphidApp;
 
@@ -802,7 +801,7 @@ impl Apps {
     #[inline(never)]
     pub fn apdu_dispatch<F, T>(&mut self, f: F) -> T
     where
-        F: FnOnce(&mut [&mut dyn ApduApp<ResponseSize>]) -> T,
+        F: FnOnce(&mut [&mut dyn ApduApp]) -> T,
     {
         f(&mut [
             #[cfg(feature = "ndef-app")]
@@ -825,9 +824,7 @@ impl Apps {
     #[inline(never)]
     pub fn ctaphid_dispatch<F, T>(&mut self, f: F) -> T
     where
-        F: FnOnce(
-            &mut [&mut dyn CtaphidApp<'static, { ctaphid_dispatch::DEFAULT_MESSAGE_SIZE }>],
-        ) -> T,
+        F: FnOnce(&mut [&mut dyn CtaphidApp<'static>]) -> T,
     {
         f(&mut [
             #[cfg(feature = "admin-app")]

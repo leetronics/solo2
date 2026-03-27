@@ -32,26 +32,26 @@ usb-device = "0.2.3"
 usbd-serial = "0.1.0"
 
 admin-app = { version = "0.1", optional = true }
-trussed-staging = { git = "https://github.com/trussed-dev/trussed-staging.git", tag = "v0.3.3", features = ["hkdf", "fs-info", "manage", "chunked", "hpke", "wrap-key-to-file"] }
-trussed-fs-info = "0.2"
-trussed-hkdf = "0.3"
-trussed-manage = "0.2"
-trussed-chunked = "0.2"
-trussed-hpke = "0.2"
-trussed-wrap-key-to-file = "0.2"
-trussed-auth = "0.4"
-trussed-auth-backend = { git = "https://github.com/trussed-dev/trussed-auth", tag = "v0.4.0" }
-apdu-dispatch = "0.3"
-ctaphid-dispatch = "0.3"
-ctap-types = "0.4"
-fido-authenticator = { version = "0.2", features = ["dispatch"], optional = true }
+trussed-staging = { git = "https://github.com/trussed-dev/trussed-staging.git", tag = "v0.4.0", features = ["hkdf", "fs-info", "manage", "chunked", "hpke", "wrap-key-to-file"] }
+trussed-fs-info = "0.3"
+trussed-hkdf = "0.4"
+trussed-manage = "0.3"
+trussed-chunked = "0.3"
+trussed-hpke = "0.3"
+trussed-wrap-key-to-file = "0.3"
+trussed-auth = "0.5"
+trussed-auth-backend = { git = "https://github.com/trussed-dev/trussed-auth", tag = "backend-v0.1.0" }
+apdu-dispatch = "0.4"
+ctaphid-dispatch = "0.4"
+ctap-types = "0.5"
+fido-authenticator = { version = "0.3", features = ["dispatch"], optional = true }
 oath-authenticator = { version = "0.1", features = ["apdu-dispatch"], optional = true }
 # OATH/TOTP/HOTP support via trussed-secrets-app (Nitrokey's implementation, Yubico OATH AID)
 # Using fork with PIN protection key isolation fix backported to v0.14
-secrets-app = { git = "https://github.com/leetronics/solokeys-secrets-app-fork", branch = "fix-pin-protection-isolation-v0.14", features = ["apdu-dispatch", "ctaphid"], optional = true }
-piv-authenticator = { git = "https://github.com/trussed-dev/piv-authenticator", features = ["apdu-dispatch"], optional = true, tag = "v0.5.3" }
+secrets-app = { git = "https://github.com/leetronics/solokeys-secrets-app-fork", branch = "fix-pin-protection-isolation", features = ["apdu-dispatch", "ctaphid"], optional = true }
+piv-authenticator = { git = "https://github.com/trussed-dev/piv-authenticator", features = ["apdu-dispatch"], optional = true, tag = "v0.6.0" }
 trussed = "0.1"
-trussed-core = "0.1"
+trussed-core = "0.2"
 
 # board
 board = { path = "board" }
@@ -62,8 +62,8 @@ ndef-app = { path = "../../components/ndef-app", optional = true }
 provisioner-app = { path = "../../components/provisioner-app", optional = true }
 fm11nc08 = {path = "../../components/fm11nc08"}
 nfc-device = {path = "../../components/nfc-device"}
-usbd-ccid = "0.3"
-usbd-ctaphid = { version = "0.3", features = ["log-info", "defmt-logging"] }
+usbd-ccid = "0.4"
+usbd-ctaphid = { version = "0.4", features = ["log-info"] }
 
 
 # panic
@@ -71,7 +71,7 @@ panic-halt = "1.0.0"
 # panic-semihosting = "0.5.6"
 
 # storage
-littlefs2 = { version = "0.6", features = ["c-stubs"] }
+littlefs2 = { version = "0.7", features = ["c-stubs"] }
 
 [features]
 # ndef-app is an annoyance on some mobile platforms
@@ -136,13 +136,9 @@ opt-level = 2
 # opt-level = 2
 
 [patch.crates-io]
-trussed = { git = "https://github.com/trussed-dev/trussed.git", rev = "e107ed315a07dc6c992fac39d542e847cc3a1b6c" }
-admin-app = { git = "https://github.com/Nitrokey/admin-app.git", tag = "v0.1.0-nitrokey.20" }
-littlefs2 = { git = "https://github.com/trussed-dev/littlefs2.git", tag = "v0.6.1-nitrokey.1" }
-littlefs2-sys = { git = "https://github.com/trussed-dev/littlefs2-sys.git", tag = "v0.3.1-nitrokey.1" }
-# Force both trussed and littlefs2 to use the same littlefs2-core (resolves DynFilesystem version mismatch)
-littlefs2-core = { git = "https://github.com/trussed-dev/littlefs2.git", tag = "v0.6.1-nitrokey.1" }
-# Extension backends needed by fido-authenticator 0.2 (FsInfoClient, HkdfClient)
-trussed-staging = { git = "https://github.com/trussed-dev/trussed-staging.git", tag = "v0.3.3" }
-# Fix WouldBlock retry for single-packet responses (PING race condition)
-usbd-ctaphid = { git = "https://github.com/leetronics/usbd-ctaphid.git", branch = "v0.3-wouldblock-fix" }
+trussed = { git = "https://github.com/trussed-dev/trussed.git", rev = "0f8df68be879acdde1f8cf428c11e5d29692a47b" }
+admin-app = { git = "https://github.com/Nitrokey/admin-app.git", tag = "v0.1.0-nitrokey.21" }
+# Force all crates to use littlefs2-core 0.1.2 which has heapless-bytes05 support
+littlefs2-core = { git = "https://github.com/trussed-dev/littlefs2.git", tag = "core-0.1.2" }
+# Extension backends needed by fido-authenticator (FsInfo, Hkdf, etc.)
+trussed-staging = { git = "https://github.com/trussed-dev/trussed-staging.git", tag = "v0.4.0" }
