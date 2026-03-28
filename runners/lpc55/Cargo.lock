@@ -670,7 +670,7 @@ dependencies = [
 [[package]]
 name = "encrypted_container"
 version = "0.1.0"
-source = "git+https://github.com/leetronics/solokeys-secrets-app-fork?branch=fix-pin-protection-isolation#d49ed35a0d1378bc66284c788ce059d4e7bd70d6"
+source = "git+https://github.com/leetronics/solokeys-secrets-app-fork?branch=fix-pin-protection-isolation#aa4ff03f0b1b8e62964b96d78aa6dc4842a694c4"
 dependencies = [
  "cbor-smol",
  "delog",
@@ -1475,6 +1475,31 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c08d65885ee38876c4f86fa503fb49d7b507c2b62552df7c70b2fce627e06381"
 
 [[package]]
+name = "opcard"
+version = "1.7.0"
+source = "git+https://github.com/Nitrokey/opcard-rs?tag=v1.7.0#2b94d6aa0d1d533e01997b61332b229247e41c49"
+dependencies = [
+ "apdu-app 0.2.0",
+ "bitflags 2.11.0",
+ "cbor-smol",
+ "cfg-if",
+ "delog",
+ "heapless 0.9.2",
+ "heapless-bytes 0.5.0",
+ "hex-literal 0.4.1",
+ "iso7816 0.2.0",
+ "littlefs2-core",
+ "log",
+ "serde",
+ "serde_repr",
+ "subtle",
+ "trussed-auth",
+ "trussed-chunked",
+ "trussed-core",
+ "trussed-wrap-key-to-file",
+]
+
+[[package]]
 name = "p256"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1839,6 +1864,7 @@ dependencies = [
  "ndef-app",
  "nfc-device",
  "oath-authenticator",
+ "opcard",
  "panic-halt",
  "piv-authenticator",
  "provisioner-app",
@@ -1922,7 +1948,7 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 [[package]]
 name = "secrets-app"
 version = "0.15.1"
-source = "git+https://github.com/leetronics/solokeys-secrets-app-fork?branch=fix-pin-protection-isolation#d49ed35a0d1378bc66284c788ce059d4e7bd70d6"
+source = "git+https://github.com/leetronics/solokeys-secrets-app-fork?branch=fix-pin-protection-isolation#aa4ff03f0b1b8e62964b96d78aa6dc4842a694c4"
 dependencies = [
  "apdu-app 0.2.0",
  "bitflags 2.11.0",

@@ -213,11 +213,14 @@ const_ram_storage!(
 // minimum: 2 blocks
 // TODO: make this optional
 // piv-authenticator hardcodes Location::External for PUK_USER_KEY_BACKUP in init_pins,
-// requiring at least 3 blocks (2 metadata + 1 data). Without PIV, 2 blocks suffices
-// as nothing writes to External storage.
-#[cfg(not(feature = "piv-authenticator"))]
+// and opcard defaults to Location::External for its persistent state + ADMIN_USER_KEY_BACKUP.
+// Both write to ExternalStorage during init_pins; the write fails on a 2-block filesystem
+// (zero data blocks) → syscall!() panic → panic_halt → firmware freeze.
+// Anything writing to External needs at least 3 blocks (2 metadata + 1 data).
+// We keep 8192 bytes (16 blocks) whenever either app is enabled.
+#[cfg(not(any(feature = "piv-authenticator", feature = "opcard")))]
 const_ram_storage!(ExternalStorage, 1024);
-#[cfg(feature = "piv-authenticator")]
+#[cfg(any(feature = "piv-authenticator", feature = "opcard"))]
 const_ram_storage!(ExternalStorage, 8192);
 
 /// Store implementation using three mounted littlefs2 filesystems.
@@ -499,6 +502,15 @@ static PIV_BACKENDS: [BackendId<BackendIds>; 3] = [
     BackendId::Core,
 ];
 
+/// Backends for opcard: same requirements as PIV (Auth for PIN, Staging for Chunked/WrapKeyToFile,
+/// Core for standard crypto/filesystem).
+#[cfg(feature = "opcard")]
+static OPCARD_BACKENDS: [BackendId<BackendIds>; 3] = [
+    BackendId::Custom(BackendIds::Auth),
+    BackendId::Custom(BackendIds::StagingBackend),
+    BackendId::Core,
+];
+
 /// Wrapper around the trussed Service that also holds the service endpoints.
 /// `process()` and `update_ui()` are called from the RTIC OS_EVENT handler and
 /// the periodic UI task respectively.
@@ -572,6 +584,8 @@ impl admin_app::StatusBytes for AdminStatus {
 pub type AdminApp = admin_app::App<TrussedClient, board::Reboot, AdminStatus>;
 #[cfg(feature = "piv-authenticator")]
 pub type PivApp = piv_authenticator::Authenticator<TrussedClient>;
+#[cfg(feature = "opcard")]
+pub type OpcardApp = opcard::Card<TrussedClient>;
 #[cfg(feature = "oath-authenticator")]
 pub type OathApp = oath_authenticator::Authenticator<TrussedClient>;
 #[cfg(feature = "oath")]
@@ -612,6 +626,11 @@ static OATH_INTERRUPT: InterruptFlag = InterruptFlag::new();
 static PIV_TRUSSED_CHANNEL: TrussedChannel = TrussedChannel::new();
 #[cfg(feature = "piv-authenticator")]
 static PIV_INTERRUPT: InterruptFlag = InterruptFlag::new();
+
+#[cfg(feature = "opcard")]
+static OPCARD_TRUSSED_CHANNEL: TrussedChannel = TrussedChannel::new();
+#[cfg(feature = "opcard")]
+static OPCARD_INTERRUPT: InterruptFlag = InterruptFlag::new();
 
 #[cfg(feature = "provisioner-app")]
 static PROVISIONER_TRUSSED_CHANNEL: TrussedChannel = TrussedChannel::new();
@@ -658,6 +677,8 @@ pub struct Apps {
     pub ndef: NdefApp,
     #[cfg(feature = "piv-authenticator")]
     pub piv: PivApp,
+    #[cfg(feature = "opcard")]
+    pub opcard: OpcardApp,
     #[cfg(feature = "provisioner-app")]
     pub provisioner: ProvisionerApp,
 }
@@ -738,6 +759,26 @@ impl Apps {
             )
         };
 
+        #[cfg(feature = "opcard")]
+        let opcard = {
+            let client = make_client(
+                &OPCARD_TRUSSED_CHANNEL,
+                littlefs2::path!("opcard"),
+                trussed,
+                Some(&OPCARD_INTERRUPT),
+                &OPCARD_BACKENDS,
+            );
+            // Use Internal storage so card state (PINs, keys) persists across reboots.
+            // opcard::Options::default() uses Location::External (volatile RAM) which would
+            // lose all card state on every reboot and cause init_pins to write
+            // ADMIN_USER_KEY_BACKUP to ExternalStorage — same failure mode as PIV.
+            {
+                let mut opts = opcard::Options::default();
+                opts.storage = trussed::types::Location::Internal;
+                OpcardApp::new(client, opts)
+            }
+        };
+
         #[cfg(feature = "oath")]
         let secrets = {
             let client = make_client(
@@ -793,6 +834,8 @@ impl Apps {
             ndef,
             #[cfg(feature = "piv-authenticator")]
             piv,
+            #[cfg(feature = "opcard")]
+            opcard,
             #[cfg(feature = "provisioner-app")]
             provisioner,
         }
@@ -808,6 +851,8 @@ impl Apps {
             &mut self.ndef,
             #[cfg(feature = "piv-authenticator")]
             &mut self.piv,
+            #[cfg(feature = "opcard")]
+            &mut self.opcard,
             #[cfg(feature = "oath-authenticator")]
             &mut self.oath,
             #[cfg(feature = "oath")]

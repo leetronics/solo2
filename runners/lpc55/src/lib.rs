@@ -30,7 +30,7 @@ impl delog::Flusher for Flusher {
 }
 
 // delog!(Delogger, 16*1024, 3*1024, Flusher);
-delog!(Delogger, 1, 2048, Flusher);
+delog!(Delogger, 3, 2048, Flusher);
 
 #[cfg(any(feature = "log-defmt"))]
 static FLUSHER: Flusher = Flusher {};

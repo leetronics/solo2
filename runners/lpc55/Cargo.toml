@@ -48,8 +48,9 @@ fido-authenticator = { version = "0.3", features = ["dispatch"], optional = true
 oath-authenticator = { version = "0.1", features = ["apdu-dispatch"], optional = true }
 # OATH/TOTP/HOTP support via trussed-secrets-app (Nitrokey's implementation, Yubico OATH AID)
 # Using fork with PIN protection key isolation fix backported to v0.14
-secrets-app = { git = "https://github.com/leetronics/solokeys-secrets-app-fork", branch = "fix-pin-protection-isolation", features = ["apdu-dispatch", "ctaphid"], optional = true }
+secrets-app = { git = "https://github.com/leetronics/solokeys-secrets-app-fork", branch = "fix-pin-protection-isolation", features = ["apdu-dispatch", "ctaphid", "log-all"], optional = true }
 piv-authenticator = { git = "https://github.com/trussed-dev/piv-authenticator", features = ["apdu-dispatch"], optional = true, tag = "v0.6.0" }
+opcard = { git = "https://github.com/Nitrokey/opcard-rs", tag = "v1.7.0", features = ["apdu-dispatch", "delog"], optional = true }
 trussed = "0.1"
 trussed-core = "0.2"
 
@@ -75,7 +76,7 @@ littlefs2 = { version = "0.7", features = ["c-stubs"] }
 
 [features]
 # ndef-app is an annoyance on some mobile platforms
-default = ["admin-app", "fido-authenticator", "ndef-app", "oath", "piv-authenticator"]
+default = ["admin-app", "fido-authenticator", "ndef-app", "oath", "piv-authenticator", "opcard"]
 # OATH/TOTP/HOTP via secrets-app (replaces incompatible oath-authenticator 0.1)
 oath = ["dep:secrets-app"]
 
@@ -86,6 +87,8 @@ develop = ["no-encrypted-storage", "log-defmt"]
 
 develop-provisioner = ["develop", "provisioner-app"]
 develop-secrets = ["develop", "oath"]
+opcard = ["dep:opcard"]
+develop-opcard = ["develop", "opcard"]
 
 # Do not use encryption for the filesystem
 no-encrypted-storage = []

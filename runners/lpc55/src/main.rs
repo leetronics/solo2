@@ -187,11 +187,11 @@ mod app {
                 runner::Delogger::flush();
             }
 
-            match c
+            let apdu_result = c
                 .shared
                 .apps
-                .apdu_dispatch(|apps| c.shared.apdu_dispatch.poll(apps))
-            {
+                .apdu_dispatch(|apps| c.shared.apdu_dispatch.poll(apps));
+            match apdu_result {
                 Some(apdu_dispatch::iso7816::Interface::Contact) => {
                     rtic::pend(USB_INTERRUPT);
                 }
