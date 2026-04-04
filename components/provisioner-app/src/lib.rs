@@ -20,9 +20,8 @@ use trussed::{
     Client as TrussedClient,
 };
 use heapless::Vec;
-use apdu_dispatch::iso7816::{Status, Instruction};
-use apdu_dispatch::app::Result as ResponseResult;
-use apdu_dispatch::app::{CommandView, Interface};
+use iso7816::{Status, Instruction};
+use apdu_dispatch::app::{self, CommandView, Interface, VecView};
 
 use lpc55_hal as hal;
 
@@ -146,8 +145,8 @@ where
     fn handle(
         &mut self,
         command: CommandView<'_>,
-        reply: &mut apdu_dispatch::response::Data,
-    ) -> ResponseResult {
+        reply: &mut VecView<u8>,
+    ) -> app::Result {
         match command.instruction() {
             Instruction::Select => self.do_select(command, reply),
             Instruction::WriteBinary => {
@@ -368,8 +367,8 @@ where
     fn do_select(
         &mut self,
         command: CommandView<'_>,
-        _reply: &mut apdu_dispatch::response::Data,
-    ) -> ResponseResult {
+        _reply: &mut VecView<u8>,
+    ) -> app::Result {
         if command.data().starts_with(&TESTER_FILENAME_ID) {
             info!("select: filename buffer");
             self.selected_buffer = SelectedBuffer::Filename;
@@ -385,18 +384,18 @@ where
     }
 }
 
-impl<S, FS, T> apdu_dispatch::iso7816::App for Provisioner<S, FS, T>
+impl<S, FS, T> iso7816::App for Provisioner<S, FS, T>
 where
     S: Store,
     FS: 'static + LfsStorage,
     T: TrussedClient,
 {
-    fn aid(&self) -> apdu_dispatch::iso7816::Aid {
-        apdu_dispatch::iso7816::Aid::new(&SOLO_PROVISIONER_AID)
+    fn aid(&self) -> iso7816::Aid {
+        iso7816::Aid::new(&SOLO_PROVISIONER_AID)
     }
 }
 
-impl<S, FS, T> apdu_dispatch::App<{ apdu_dispatch::response::SIZE }> for Provisioner<S, FS, T>
+impl<S, FS, T> app::App for Provisioner<S, FS, T>
 where
     S: Store,
     FS: 'static + LfsStorage,
@@ -406,8 +405,8 @@ where
         &mut self,
         _interface: Interface,
         _apdu: CommandView<'_>,
-        reply: &mut apdu_dispatch::response::Data,
-    ) -> ResponseResult {
+        reply: &mut VecView<u8>,
+    ) -> app::Result {
         self.buffer_file_contents.clear();
         self.buffer_filename.clear();
         reply.extend_from_slice(&hal::uuid()).unwrap();
@@ -420,8 +419,8 @@ where
         &mut self,
         _interface: Interface,
         apdu: CommandView<'_>,
-        reply: &mut apdu_dispatch::response::Data,
-    ) -> ResponseResult {
+        reply: &mut VecView<u8>,
+    ) -> app::Result {
         self.handle(apdu, reply)
     }
 }

@@ -1,13 +1,10 @@
 [package]
 name = "ndef-app"
 version = "0.1.0"
-authors = ["Conor Patrick <conor@solokeys.com>"]
+authors.workspace = true
 edition = "2024"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
-heapless = "0.9"
-
-apdu-dispatch = "0.4"
-iso7816 = "0.2"
+heapless      .workspace = true
+apdu-dispatch .workspace = true
+iso7816       .workspace = true

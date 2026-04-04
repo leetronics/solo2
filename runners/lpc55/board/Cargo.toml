@@ -1,18 +1,18 @@
 [package]
 name = "board"
 version = "0.1.0-unreleased"
-authors = ["Conor Patrick <conor@solokeys.com>"]
-edition = "2024"
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
-admin-app = "0.1"
-defmt = "1.0.1"
-fm11nc08 = {path = "../../../components/fm11nc08"}
-lpc55-hal = "0.4.1"
-rtic = { version = "2.0.0", features = ["thumbv8main-backend"] }
-micromath = "2"
-nb = "1"
-trussed = "0.1"
+admin-app .workspace = true
+defmt     .workspace = true
+fm11nc08  .workspace = true
+lpc55-hal .workspace = true
+rtic      = { workspace = true, features = ["thumbv8main-backend"] }
+micromath .workspace = true
+nb        .workspace = true
+trussed   .workspace = true
 
 [features]
 lpcxpresso55 = []
@@ -22,10 +22,3 @@ solo2 = []
 no-buttons = []
 no-clock-controller = []
 enable-clock-controller-signal-pin = []
-
-[profile.release]
-codegen-units = 1
-# lto = true
-# opt-level = "s"
-incremental = false
-debug = true

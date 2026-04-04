@@ -1,17 +1,18 @@
 [package]
 name = "provisioner-app"
 version = "0.1.0"
-authors = ["Conor Patrick <conor@solokeys.com>"]
+authors.workspace = true
 edition = "2024"
 
 [dependencies]
-apdu-dispatch = "0.3"
-defmt = "1.0.1"
-heapless = "0.8"
-lpc55-hal = { version = "0.3", features = ["rtic-peripherals"] }
-littlefs2 = "0.6"
-trussed = "0.1"
-p256 = { version = "0.9", default-features = false, features = ["arithmetic"] }
+apdu-dispatch .workspace = true
+defmt         .workspace = true
+heapless      .workspace = true
+iso7816       .workspace = true
+lpc55-hal     .workspace = true
+littlefs2     .workspace = true
+trussed       .workspace = true
+p256  = { version = "0.9", default-features = false, features = ["arithmetic"] }
 salty = "0.3"
 
 [features]
