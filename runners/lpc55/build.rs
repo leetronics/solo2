@@ -93,6 +93,7 @@ fn main() -> Result<(), Box<dyn error::Error>> {
     println!("cargo:rerun-if-changed=cfg.toml");
 
     let out_dir = env::var("OUT_DIR").expect("No out dir");
+    println!("cargo:rustc-link-search={out_dir}");
 
     // We would like to put configuration variables in cfg.toml, but due to a Cargo bug,
     // the serde feature flags will get merged with solo-bee's serde, causing build issues.
@@ -108,8 +109,7 @@ fn main() -> Result<(), Box<dyn error::Error>> {
         },
     };
 
-    let linker_script_file = env::var("CARGO_MANIFEST_DIR").expect("No out dir");
-    let linker_script_file = Path::new(&linker_script_file).join("memory.x");
+    let linker_script_file = Path::new(&out_dir).join("memory.x");
     let mut linker_script_file = File::create(&linker_script_file).expect("Could not create file");
 
     let dest_path = Path::new(&out_dir).join("build_constants.rs");

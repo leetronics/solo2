@@ -13,9 +13,21 @@ build-pro:
 	cargo build --release $(PROVISIONER)
 	cargo objcopy --release $(PROVISIONER) -- -O binary provisioner.bin
 
+# Solo 2 Hacker: production-style build with encrypted storage.
+# This requires the device to be provisioned for PRINCE/PUF.
 build-release:
 	cargo build --release --features board-solo2
 	cargo objcopy --release --features board-solo2 -- -O binary app-solo2.bin
+
+# Solo 2 Hacker: development build without encrypted storage.
+build-hacker:
+	cargo build --release --features board-solo2,develop
+	cargo objcopy --release --features board-solo2,develop -- -O binary app-solo2.bin
+
+# Solo 2 Hacker recovery build: plain storage plus forced filesystem format.
+build-hacker-recovery:
+	cargo build --release --features board-solo2,develop,format-filesystem
+	cargo objcopy --release --features board-solo2,develop,format-filesystem -- -O binary app-solo2.bin
 
 .PHONY: today-as-minor-version
 today-in-days:
@@ -39,4 +51,3 @@ PACK_VERSION := $(shell wget -O - -qq https://mcuxpresso.nxp.com/cmsis_pack/repo
 PACK := NXP.LPC55S69_DFP.$(PACK_VERSION).pack
 get-cmsis-pack:
 	wget -qq https://mcuxpresso.nxp.com/cmsis_pack/repo/$(PACK) -O ./lpc55s69.pack
-

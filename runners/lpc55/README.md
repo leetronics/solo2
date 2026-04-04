@@ -2,6 +2,19 @@
 
 The entire firmware that runs all the things.
 
+## Solo 2 Hacker builds
+
+For a standalone Solo 2 Hacker, the safest custom-firmware path is the `develop`
+variant because it disables encrypted storage (`no-encrypted-storage`).
+
+- `make build-hacker`
+  Builds `board-solo2,develop` and writes `app-solo2.bin`.
+- `make build-hacker-recovery`
+  Builds `board-solo2,develop,format-filesystem` and forces a filesystem format on first boot.
+- `make build-release`
+  Builds the PRINCE/PUF-backed production-style image. Use this only if the device is
+  provisioned for encrypted storage.
+
 
 ### Logging
 
