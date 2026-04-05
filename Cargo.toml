@@ -85,7 +85,7 @@ trussed-auth-backend     = { git = "https://github.com/trussed-dev/trussed-auth"
 admin-app          = "0.1"
 fido-authenticator = { version = "0.3", features = ["dispatch"] }
 oath-authenticator = { version = "0.1", features = ["apdu-dispatch"] }
-secrets-app        = { git = "https://github.com/leetronics/solokeys-secrets-app-fork", branch = "fix-pin-protection-isolation", features = ["apdu-dispatch", "ctaphid", "log-all"] }
+secrets-app        = { git = "https://github.com/leetronics/trussed-secrets-app", branch = "fix-pin-protection-isolation", features = ["apdu-dispatch", "ctaphid", "log-all"] }
 piv-authenticator  = { git = "https://github.com/trussed-dev/piv-authenticator", tag = "v0.6.0", features = ["apdu-dispatch"] }
 opcard             = { git = "https://github.com/Nitrokey/opcard-rs", tag = "v1.7.0", features = ["apdu-dispatch", "delog"] }
 

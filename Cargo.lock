@@ -636,7 +636,7 @@ dependencies = [
 [[package]]
 name = "encrypted_container"
 version = "0.1.0"
-source = "git+https://github.com/leetronics/solokeys-secrets-app-fork?branch=fix-pin-protection-isolation#aa4ff03f0b1b8e62964b96d78aa6dc4842a694c4"
+source = "git+https://github.com/leetronics/trussed-secrets-app?branch=fix-pin-protection-isolation#30106e147559a72e849aa9ec17690e5167d04f8a"
 dependencies = [
  "cbor-smol",
  "delog",
@@ -1781,8 +1781,8 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
 name = "secrets-app"
-version = "0.15.1"
-source = "git+https://github.com/leetronics/solokeys-secrets-app-fork?branch=fix-pin-protection-isolation#aa4ff03f0b1b8e62964b96d78aa6dc4842a694c4"
+version = "0.15.0"
+source = "git+https://github.com/leetronics/trussed-secrets-app?branch=fix-pin-protection-isolation#30106e147559a72e849aa9ec17690e5167d04f8a"
 dependencies = [
  "apdu-app",
  "bitflags 2.11.0",
