@@ -15,6 +15,7 @@ edition = "2021"
 authors = [
     "Nicolas Stalder <n@stalder.io>",
     "Conor Patrick <conor@solokeys.com>",
+    "Manuel Domke <manuel@leetronics.de>",
 ]
 
 [workspace.dependencies]
