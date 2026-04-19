@@ -21,7 +21,7 @@ jobs:
           - board-solo2
           # - board-okdoe1
         rust:
-          - stable
+          - "1.94"
     defaults:
       run:
         working-directory: runners/lpc55
@@ -73,7 +73,7 @@ jobs:
           path: runners/lpc55/target/thumbv8m.main-none-eabi/release/runner
       - name: Build Provisioner
         run: |
-          cargo build --release --features ${{ matrix.board }},provisioner-app,admin-app,trussed/clients-2,provisioner-app/test-attestation
+          cargo build --release --features ${{ matrix.board }},provisioner-app,admin-app,provisioner-app/test-attestation
       - name: Upload Provisioner
         uses: actions/upload-artifact@v4
         continue-on-error: true
@@ -91,7 +91,7 @@ jobs:
           # TODO: some build issue currently
           # - macos-latest
         rust:
-          - stable
+          - "1.94"
     defaults:
       run:
         working-directory: runners/pc

@@ -2,14 +2,14 @@ use std::{fs::File, io::Write};
 pub use embedded_hal::blocking::rng;
 use littlefs2::{const_ram_storage, consts};
 use littlefs2::fs::{Allocation, Filesystem};
-use trussed::types::{LfsResult, LfsStorage};
+use trussed::store::DynFilesystem;
 
 use trussed::platform::{
     ui,
     reboot,
     consent,
 };
-use trussed::{platform, store};
+use trussed::platform;
 
 pub use generic_array::{
     GenericArray,
@@ -33,7 +33,7 @@ pub mod littlefs_params {
     pub const BLOCK_CYCLES: isize = -1;
 
     pub type CACHE_SIZE = U512;
-    pub type LOOKAHEADWORDS_SIZE = U16;
+    pub type LOOKAHEAD_SIZE = U16;
     /// TODO: We can't actually be changed currently
     pub type FILENAME_MAX_PLUS_ONE = U256;
     pub type PATH_MAX_PLUS_ONE = U256;
@@ -69,17 +69,17 @@ impl littlefs2::driver::Storage for FileFlash {
     const BLOCK_CYCLES: isize = littlefs_params::BLOCK_CYCLES;
 
     type CACHE_SIZE = littlefs_params::CACHE_SIZE;
-    type LOOKAHEADWORDS_SIZE = littlefs_params::LOOKAHEADWORDS_SIZE;
+    type LOOKAHEAD_SIZE = littlefs_params::LOOKAHEAD_SIZE;
 
 
-    fn read(&self, off: usize, buf: &mut [u8]) -> LfsResult<usize> {
+    fn read(&mut self, off: usize, buf: &mut [u8]) -> littlefs2::io::Result<usize> {
         for i in 0 .. buf.len() {
             buf[i] = self.state[i + off];
         }
         Ok(buf.len())
     }
 
-    fn write(&mut self, off: usize, data: &[u8]) -> LfsResult<usize> {
+    fn write(&mut self, off: usize, data: &[u8]) -> littlefs2::io::Result<usize> {
         for i in 0 .. data.len() {
             self.state[i + off] = data[i];
         }
@@ -89,7 +89,7 @@ impl littlefs2::driver::Storage for FileFlash {
         Ok(data.len())
     }
 
-    fn erase(&mut self, off: usize, len: usize) -> LfsResult<usize> {
+    fn erase(&mut self, off: usize, len: usize) -> littlefs2::io::Result<usize> {
         for i in 0 .. len {
             self.state[i + off] = 0;
         }
@@ -103,7 +103,6 @@ impl littlefs2::driver::Storage for FileFlash {
 // 8KB of RAM
 const_ram_storage!(
     name=VolatileStorage,
-    trait=LfsStorage,
     erase_value=0x00,
     read_size=1,
     write_size=1,
@@ -111,42 +110,30 @@ const_ram_storage!(
     // this is a limitation of littlefs
     // https://git.io/JeHp9
     block_size=128,
-    // block_size=128,
     block_count=8192/128,
-    lookaheadwords_size_ty=consts::U8,
+    lookahead_size_ty=consts::U8,
     filename_max_plus_one_ty=consts::U256,
     path_max_plus_one_ty=consts::U256,
-    result=LfsResult,
 );
 
 // minimum: 2 blocks
 // TODO: make this optional
 const_ram_storage!(ExternalStorage, 1024);
 
-store!(Store,
-    Internal: FileFlash,
-    External: ExternalStorage,
-    Volatile: VolatileStorage
-);
+#[derive(Clone, Copy)]
+pub struct RunnerStore {
+    ifs: &'static dyn DynFilesystem,
+    efs: &'static dyn DynFilesystem,
+    vfs: &'static dyn DynFilesystem,
+}
 
+impl trussed::store::Store for RunnerStore {
+    fn ifs(&self) -> &dyn DynFilesystem { self.ifs }
+    fn efs(&self) -> &dyn DynFilesystem { self.efs }
+    fn vfs(&self) -> &dyn DynFilesystem { self.vfs }
+}
 
-
-// #[derive(Default)]
-// pub struct Rng {
-//     count: u64,
-// }
-
-// impl rng::Read for Rng {
-//     type Error = core::convert::Infallible;
-//     fn read(&mut self, buffer: &mut [u8]) -> core::result::Result<(), Self::Error> {
-//         // bad
-//         for i in 0 .. buffer.len() {
-//             self.count += 1;
-//             buffer[i] = (self.count & 0xff) as u8;
-//         }
-//         Ok(())
-//     }
-// }
+pub type Store = RunnerStore;
 
 
 #[derive(Default)]
@@ -188,51 +175,47 @@ platform!(Board,
 
 fn main () {
 
-    let filesystem = FileFlash::new();
+    // Allocate and mount three filesystems, leaking them to obtain 'static refs.
+    let internal_storage: &'static mut FileFlash = Box::leak(Box::new(FileFlash::new()));
+    let internal_alloc: &'static mut Allocation<FileFlash> =
+        Box::leak(Box::new(Filesystem::allocate()));
 
-    static mut INTERNAL_STORAGE: Option<FileFlash> = None;
-    unsafe { INTERNAL_STORAGE = Some(filesystem); }
-    static mut INTERNAL_FS_ALLOC: Option<Allocation<FileFlash>> = None;
-    unsafe { INTERNAL_FS_ALLOC = Some(Filesystem::allocate()); }
+    let external_storage: &'static mut ExternalStorage =
+        Box::leak(Box::new(ExternalStorage::new()));
+    let external_alloc: &'static mut Allocation<ExternalStorage> =
+        Box::leak(Box::new(Filesystem::allocate()));
 
-    static mut EXTERNAL_STORAGE: ExternalStorage = ExternalStorage::new();
-    static mut EXTERNAL_FS_ALLOC: Option<Allocation<ExternalStorage>> = None;
-    unsafe { EXTERNAL_FS_ALLOC = Some(Filesystem::allocate()); }
+    let volatile_storage: &'static mut VolatileStorage =
+        Box::leak(Box::new(VolatileStorage::new()));
+    let volatile_alloc: &'static mut Allocation<VolatileStorage> =
+        Box::leak(Box::new(Filesystem::allocate()));
 
-    static mut VOLATILE_STORAGE: VolatileStorage = VolatileStorage::new();
-    static mut VOLATILE_FS_ALLOC: Option<Allocation<VolatileStorage>> = None;
-    unsafe { VOLATILE_FS_ALLOC = Some(Filesystem::allocate()); }
-
-
-    let store = Store::claim().unwrap();
-
-    let result = store.mount(
-        unsafe { INTERNAL_FS_ALLOC.as_mut().unwrap() },
-        // unsafe { &mut INTERNAL_STORAGE },
-        unsafe { INTERNAL_STORAGE.as_mut().unwrap() },
-        unsafe { EXTERNAL_FS_ALLOC.as_mut().unwrap() },
-        unsafe { &mut EXTERNAL_STORAGE },
-        unsafe { VOLATILE_FS_ALLOC.as_mut().unwrap() },
-        unsafe { &mut VOLATILE_STORAGE },
-        // to trash existing data, set to true
-        false,
-    );
-
-    if result.is_err() {
+    // Internal FS: try mount, format on failure.
+    if Filesystem::mount(internal_alloc, internal_storage).is_err() {
         println!("Not yet formatted!  Formatting..");
-        store.mount(
-            unsafe { INTERNAL_FS_ALLOC.as_mut().unwrap() },
-            // unsafe { &mut INTERNAL_STORAGE },
-            unsafe { INTERNAL_STORAGE.as_mut().unwrap() },
-            unsafe { EXTERNAL_FS_ALLOC.as_mut().unwrap() },
-            unsafe { &mut EXTERNAL_STORAGE },
-            unsafe { VOLATILE_FS_ALLOC.as_mut().unwrap() },
-            unsafe { &mut VOLATILE_STORAGE },
-            // to trash existing data, set to true
-            true,
-        ).unwrap();
+        Filesystem::format(internal_storage).unwrap();
     }
+    let internal_fs: &'static mut Filesystem<'static, FileFlash> = Box::leak(Box::new(
+        Filesystem::mount(internal_alloc, internal_storage).unwrap(),
+    ));
 
+    // External FS (RAM): always needs format on first use.
+    Filesystem::format(external_storage).unwrap();
+    let external_fs: &'static mut Filesystem<'static, ExternalStorage> = Box::leak(Box::new(
+        Filesystem::mount(external_alloc, external_storage).unwrap(),
+    ));
+
+    // Volatile FS (RAM): always needs format on first use.
+    Filesystem::format(volatile_storage).unwrap();
+    let volatile_fs: &'static mut Filesystem<'static, VolatileStorage> = Box::leak(Box::new(
+        Filesystem::mount(volatile_alloc, volatile_storage).unwrap(),
+    ));
+
+    let store = RunnerStore {
+        ifs: internal_fs,
+        efs: external_fs,
+        vfs: volatile_fs,
+    };
 
     use trussed::service::SeedableRng;
     let rng = chacha20::ChaCha8Rng::from_seed([0u8; 32]);

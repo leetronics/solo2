@@ -2,10 +2,19 @@
 members = [
     "runners/lpc55",
     "runners/lpc55/board",
+    "runners/pc",
     "components/ndef-app",
     "components/nfc-device",
     "components/fm11nc08",
     "components/provisioner-app",
+]
+# Host-buildable members only. The lpc55 runner/board, fm11nc08, and
+# provisioner-app (via lpc55-hal) / nfc-device (via embedded deps) all require an
+# ARM target and can't link on the host, so they're excluded from default
+# commands like `cargo test`.
+default-members = [
+    "runners/pc",
+    "components/ndef-app",
 ]
 resolver = "2"
 
@@ -34,7 +43,7 @@ systick-monotonic = "1.0.1"
 
 # ── Cortex-M / embedded ───────────────────────────────────────────────────────
 cortex-m      = { version = "0.7.0", features = ["critical-section-single-core"] }
-lpc55-hal     = "0.4.1"
+lpc55-hal     = "0.5.0"
 micromath     = "2"
 embedded-time = "0.12"
 embedded-hal  = { version = "0.2.5", features = ["unproven"] }

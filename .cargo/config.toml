@@ -6,6 +6,3 @@ rustflags = [
   "-C", "link-arg=-Tdefmt.x",
   "-Dwarnings",
 ]
-
-[build]
-target = "thumbv8m.main-none-eabi"
