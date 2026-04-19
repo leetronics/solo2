@@ -12,16 +12,16 @@ use core::convert::TryFrom;
 use littlefs2::driver::Storage as LfsStorage;
 use littlefs2::path::PathBuf;
 
+use apdu_dispatch::app::{self, CommandView, Interface, VecView};
 use defmt::info;
+use heapless::Vec;
+use iso7816::{Instruction, Status};
 use trussed::{
+    Client as TrussedClient,
     store::{self, Store},
     syscall,
     types::Location,
-    Client as TrussedClient,
 };
-use heapless::Vec;
-use iso7816::{Status, Instruction};
-use apdu_dispatch::app::{self, CommandView, Interface, VecView};
 
 use lpc55_hal as hal;
 
@@ -136,27 +136,27 @@ where
     /// Build a serialized trussed secret key: flags(2 BE) + kind(2 BE) + material(32)
     fn serialize_secret_key(kind_code: u16, material: &[u8; 32]) -> heapless::Vec<u8, 36> {
         let mut bytes: heapless::Vec<u8, 36> = heapless::Vec::new();
-        bytes.extend_from_slice(&KEY_FLAGS_LOCAL_SENSITIVE.to_be_bytes()).unwrap();
+        bytes
+            .extend_from_slice(&KEY_FLAGS_LOCAL_SENSITIVE.to_be_bytes())
+            .unwrap();
         bytes.extend_from_slice(&kind_code.to_be_bytes()).unwrap();
         bytes.extend_from_slice(material).unwrap();
         bytes
     }
 
-    fn handle(
-        &mut self,
-        command: CommandView<'_>,
-        reply: &mut VecView<u8>,
-    ) -> app::Result {
+    fn handle(&mut self, command: CommandView<'_>, reply: &mut VecView<u8>) -> app::Result {
         match command.instruction() {
             Instruction::Select => self.do_select(command, reply),
             Instruction::WriteBinary => {
                 match self.selected_buffer {
-                    SelectedBuffer::Filename => {
-                        self.buffer_filename.extend_from_slice(command.data()).unwrap()
-                    }
-                    SelectedBuffer::File => {
-                        self.buffer_file_contents.extend_from_slice(command.data()).unwrap()
-                    }
+                    SelectedBuffer::Filename => self
+                        .buffer_filename
+                        .extend_from_slice(command.data())
+                        .unwrap(),
+                    SelectedBuffer::File => self
+                        .buffer_file_contents
+                        .extend_from_slice(command.data())
+                        .unwrap(),
                 };
                 Ok(())
             }
@@ -327,7 +327,9 @@ where
                             }
                             // Ed255 public key: no SENSITIVE flag
                             let mut key_bytes: heapless::Vec<u8, 36> = heapless::Vec::new();
-                            key_bytes.extend_from_slice(&0x0000u16.to_be_bytes()).unwrap();
+                            key_bytes
+                                .extend_from_slice(&0x0000u16.to_be_bytes())
+                                .unwrap();
                             key_bytes
                                 .extend_from_slice(&KEY_KIND_ED255.to_be_bytes())
                                 .unwrap();
@@ -344,10 +346,10 @@ where
                         BootToBootrom => {
                             use hal::traits::flash::WriteErase;
                             let flash = unsafe { hal::peripherals::flash::Flash::steal() }
-                                .enabled(&mut unsafe {
-                                    hal::peripherals::syscon::Syscon::steal()
-                                });
-                            hal::drivers::flash::FlashGordon::new(flash).erase_page(0).ok();
+                                .enabled(&mut unsafe { hal::peripherals::syscon::Syscon::steal() });
+                            hal::drivers::flash::FlashGordon::new(flash)
+                                .erase_page(0)
+                                .ok();
                             hal::raw::SCB::sys_reset()
                         }
                         #[cfg(feature = "test-attestation")]
@@ -364,11 +366,7 @@ where
         }
     }
 
-    fn do_select(
-        &mut self,
-        command: CommandView<'_>,
-        _reply: &mut VecView<u8>,
-    ) -> app::Result {
+    fn do_select(&mut self, command: CommandView<'_>, _reply: &mut VecView<u8>) -> app::Result {
         if command.data().starts_with(&TESTER_FILENAME_ID) {
             info!("select: filename buffer");
             self.selected_buffer = SelectedBuffer::Filename;

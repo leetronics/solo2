@@ -19,15 +19,9 @@ pub mod solo2;
 #[cfg(feature = "solo2")]
 pub use solo2 as specifics;
 
-pub use shared::{
-    CLOCK_FREQ,
-    Reboot,
-};
+pub use shared::{Reboot, CLOCK_FREQ};
 
-pub use specifics::{
-    button::ThreeButtons,
-    led::RgbLed,
-};
+pub use specifics::{button::ThreeButtons, led::RgbLed};
 
 pub mod clock_controller;
 pub mod nfc;

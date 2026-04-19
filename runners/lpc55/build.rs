@@ -40,7 +40,7 @@ macro_rules! add_build_variable {
     };
 
     ($file:expr, $name:literal, $value:expr) => {
-        writeln!($file, "pub const {}: &'static str = \"{}\";", $name, $value)
+        writeln!($file, "pub const {}: &str = \"{}\";", $name, $value)
             .expect("Could not write build_constants.rs file");
     };
 }
@@ -116,12 +116,12 @@ fn main() -> Result<(), Box<dyn error::Error>> {
     let mut f = File::create(&dest_path).expect("Could not create file");
 
     let hash_long_cmd = Command::new("git")
-        .args(&["rev-parse", "HEAD"])
+        .args(["rev-parse", "HEAD"])
         .output()
         .unwrap()
         .stdout;
     let hash_short_cmd = Command::new("git")
-        .args(&["rev-parse", "--short", "HEAD"])
+        .args(["rev-parse", "--short", "HEAD"])
         .output()
         .unwrap()
         .stdout;

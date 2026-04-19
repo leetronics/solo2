@@ -144,8 +144,8 @@ mod littlefs2_prince_filesystem {
         fn read(&mut self, off: usize, buf: &mut [u8]) -> littlefs2::io::Result<usize> {
             self.prince.enable_region_2_for(|| {
                 let flash: *const u8 = (Self::BASE_OFFSET + off) as *const u8;
-                for i in 0..buf.len() {
-                    buf[i] = unsafe { *flash.offset(i as isize) };
+                for (i, slot) in buf.iter_mut().enumerate() {
+                    *slot = unsafe { *flash.add(i) };
                 }
             });
             Ok(buf.len())
@@ -459,18 +459,13 @@ impl ExtensionDispatch for Dispatch {
     }
 }
 
+#[derive(Default)]
 pub struct Syscall {}
 
 impl trussed::client::Syscall for Syscall {
     #[inline]
     fn syscall(&mut self) {
         rtic::pend(board::hal::raw::Interrupt::OS_EVENT);
-    }
-}
-
-impl Default for Syscall {
-    fn default() -> Self {
-        Self {}
     }
 }
 
@@ -550,17 +545,9 @@ pub type CtaphidDispatch =
 
 /// Minimal status implementation for admin-app.
 #[cfg(feature = "admin-app")]
+#[derive(Default)]
 pub struct AdminStatus {
     random_error: bool,
-}
-
-#[cfg(feature = "admin-app")]
-impl Default for AdminStatus {
-    fn default() -> Self {
-        Self {
-            random_error: false,
-        }
-    }
 }
 
 #[cfg(feature = "admin-app")]

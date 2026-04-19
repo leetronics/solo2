@@ -1,25 +1,20 @@
-use std::{fs::File, io::Write};
 pub use embedded_hal::blocking::rng;
-use littlefs2::{const_ram_storage, consts};
 use littlefs2::fs::{Allocation, Filesystem};
+use littlefs2::{const_ram_storage, consts};
+use std::{fs::File, io::Write};
 use trussed::store::DynFilesystem;
 
-use trussed::platform::{
-    ui,
-    reboot,
-    consent,
-};
 use trussed::platform;
+use trussed::platform::{consent, reboot, ui};
 
 pub use generic_array::{
-    GenericArray,
     typenum::{U16, U512},
+    GenericArray,
 };
 
-use generic_array::typenum::{U256, U1022};
+use generic_array::typenum::{U1022, U256};
 
-
-const SOLO_STATE: &'static str = "solo-state.bin";
+const SOLO_STATE: &str = "solo-state.bin";
 
 #[allow(non_camel_case_types)]
 pub mod littlefs_params {
@@ -51,12 +46,18 @@ impl FileFlash {
 
         if let Ok(contents) = std::fs::read(SOLO_STATE) {
             println!("loaded {}", SOLO_STATE);
-            state.copy_from_slice( contents.as_slice() );
-            Self {state}
+            state.copy_from_slice(contents.as_slice());
+            Self { state }
         } else {
             println!("No state yet, creating");
-            Self {state}
+            Self { state }
         }
+    }
+}
+
+impl Default for FileFlash {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -71,49 +72,42 @@ impl littlefs2::driver::Storage for FileFlash {
     type CACHE_SIZE = littlefs_params::CACHE_SIZE;
     type LOOKAHEAD_SIZE = littlefs_params::LOOKAHEAD_SIZE;
 
-
     fn read(&mut self, off: usize, buf: &mut [u8]) -> littlefs2::io::Result<usize> {
-        for i in 0 .. buf.len() {
-            buf[i] = self.state[i + off];
-        }
+        buf.copy_from_slice(&self.state[off..off + buf.len()]);
         Ok(buf.len())
     }
 
     fn write(&mut self, off: usize, data: &[u8]) -> littlefs2::io::Result<usize> {
-        for i in 0 .. data.len() {
-            self.state[i + off] = data[i];
-        }
+        self.state[off..off + data.len()].copy_from_slice(data);
         let mut buffer = File::create(SOLO_STATE).unwrap();
-        buffer.write(&self.state).unwrap();
-
+        buffer.write_all(&self.state).unwrap();
         Ok(data.len())
     }
 
     fn erase(&mut self, off: usize, len: usize) -> littlefs2::io::Result<usize> {
-        for i in 0 .. len {
-            self.state[i + off] = 0;
+        for byte in &mut self.state[off..off + len] {
+            *byte = 0;
         }
         let mut buffer = File::create(SOLO_STATE).unwrap();
-        buffer.write(&self.state).unwrap();
+        buffer.write_all(&self.state).unwrap();
         Ok(len)
     }
-
 }
 
 // 8KB of RAM
 const_ram_storage!(
-    name=VolatileStorage,
-    erase_value=0x00,
-    read_size=1,
-    write_size=1,
-    cache_size_ty=consts::U128,
+    name = VolatileStorage,
+    erase_value = 0x00,
+    read_size = 1,
+    write_size = 1,
+    cache_size_ty = consts::U128,
     // this is a limitation of littlefs
     // https://git.io/JeHp9
-    block_size=128,
-    block_count=8192/128,
-    lookahead_size_ty=consts::U8,
-    filename_max_plus_one_ty=consts::U256,
-    path_max_plus_one_ty=consts::U256,
+    block_size = 128,
+    block_count = 8192 / 128,
+    lookahead_size_ty = consts::U8,
+    filename_max_plus_one_ty = consts::U256,
+    path_max_plus_one_ty = consts::U256,
 );
 
 // minimum: 2 blocks
@@ -128,33 +122,32 @@ pub struct RunnerStore {
 }
 
 impl trussed::store::Store for RunnerStore {
-    fn ifs(&self) -> &dyn DynFilesystem { self.ifs }
-    fn efs(&self) -> &dyn DynFilesystem { self.efs }
-    fn vfs(&self) -> &dyn DynFilesystem { self.vfs }
+    fn ifs(&self) -> &dyn DynFilesystem {
+        self.ifs
+    }
+    fn efs(&self) -> &dyn DynFilesystem {
+        self.efs
+    }
+    fn vfs(&self) -> &dyn DynFilesystem {
+        self.vfs
+    }
 }
 
 pub type Store = RunnerStore;
 
-
 #[derive(Default)]
-pub struct UserInterface {
-}
+pub struct UserInterface {}
 
-impl trussed::platform::UserInterface for UserInterface
-{
+impl trussed::platform::UserInterface for UserInterface {
     fn check_user_presence(&mut self) -> consent::Level {
         consent::Level::Normal
     }
 
     fn set_status(&mut self, status: ui::Status) {
-
         println!("Set status: {:?}", status);
-
     }
 
-    fn refresh(&mut self) {
-
-    }
+    fn refresh(&mut self) {}
 
     fn uptime(&mut self) -> core::time::Duration {
         core::time::Duration::from_millis(1000)
@@ -164,7 +157,6 @@ impl trussed::platform::UserInterface for UserInterface
         println!("Restart!  ({:?})", to);
         std::process::exit(25);
     }
-
 }
 
 platform!(Board,
@@ -173,8 +165,7 @@ platform!(Board,
     UI: UserInterface,
 );
 
-fn main () {
-
+fn main() {
     // Allocate and mount three filesystems, leaking them to obtain 'static refs.
     let internal_storage: &'static mut FileFlash = Box::leak(Box::new(FileFlash::new()));
     let internal_alloc: &'static mut Allocation<FileFlash> =

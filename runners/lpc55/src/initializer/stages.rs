@@ -16,14 +16,12 @@ use hal::peripherals::prince::Prince;
 use hal::typestates::pin::state::Gpio;
 
 /// Initialized clocks, Nfc interrupt pin, Iocon, Gpio.
+#[non_exhaustive]
 pub struct Clock {
     pub clocks: Clocks,
     pub nfc_irq: Option<hal::Pin<board::nfc::NfcIrqPin, Gpio<direction::Input>>>,
     pub iocon: hal::Iocon<hal::Enabled>,
     pub gpio: hal::Gpio<hal::Enabled>,
-
-    // prevent outside sources from constructing
-    pub(crate) _clock: (),
 }
 
 /// Initialized delay & performance timers, Adc, Buttons, Nfc chip, RGB LED

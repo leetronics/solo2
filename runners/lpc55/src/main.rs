@@ -210,27 +210,25 @@ mod app {
 
                     usb_classes.ctaphid.check_timeout(time / 1000);
 
-                    match usb_classes.ccid.did_start_processing() {
-                        usbd_ccid::Status::ReceivedData(milliseconds) => {
-                            c.shared
-                                .ccid_wait_extension_sender
-                                .lock(|ccid_wait_extension_sender| {
-                                    ccid_wait_extension_sender.try_send(milliseconds)
-                                })
-                                .ok();
-                        }
-                        _ => {}
+                    if let usbd_ccid::Status::ReceivedData(milliseconds) =
+                        usb_classes.ccid.did_start_processing()
+                    {
+                        c.shared
+                            .ccid_wait_extension_sender
+                            .lock(|ccid_wait_extension_sender| {
+                                ccid_wait_extension_sender.try_send(milliseconds)
+                            })
+                            .ok();
                     }
-                    match usb_classes.ctaphid.did_start_processing() {
-                        usbd_ctaphid::types::Status::ReceivedData(milliseconds) => {
-                            c.shared
-                                .ctaphid_keep_alive_sender
-                                .lock(|ctaphid_keep_alive_sender| {
-                                    ctaphid_keep_alive_sender.try_send(milliseconds)
-                                })
-                                .ok();
-                        }
-                        _ => {}
+                    if let usbd_ctaphid::types::Status::ReceivedData(milliseconds) =
+                        usb_classes.ctaphid.did_start_processing()
+                    {
+                        c.shared
+                            .ctaphid_keep_alive_sender
+                            .lock(|ctaphid_keep_alive_sender| {
+                                ctaphid_keep_alive_sender.try_send(milliseconds)
+                            })
+                            .ok();
                     }
                 }
             });
@@ -268,27 +266,25 @@ mod app {
 
             usb_classes.poll();
 
-            match usb_classes.ccid.did_start_processing() {
-                usbd_ccid::Status::ReceivedData(milliseconds) => {
-                    c.shared
-                        .ccid_wait_extension_sender
-                        .lock(|ccid_wait_extension_sender| {
-                            ccid_wait_extension_sender.try_send(milliseconds)
-                        })
-                        .ok();
-                }
-                _ => {}
+            if let usbd_ccid::Status::ReceivedData(milliseconds) =
+                usb_classes.ccid.did_start_processing()
+            {
+                c.shared
+                    .ccid_wait_extension_sender
+                    .lock(|ccid_wait_extension_sender| {
+                        ccid_wait_extension_sender.try_send(milliseconds)
+                    })
+                    .ok();
             }
-            match usb_classes.ctaphid.did_start_processing() {
-                usbd_ctaphid::types::Status::ReceivedData(milliseconds) => {
-                    c.shared
-                        .ctaphid_keep_alive_sender
-                        .lock(|ctaphid_keep_alive_sender| {
-                            ctaphid_keep_alive_sender.try_send(milliseconds)
-                        })
-                        .ok();
-                }
-                _ => {}
+            if let usbd_ctaphid::types::Status::ReceivedData(milliseconds) =
+                usb_classes.ctaphid.did_start_processing()
+            {
+                c.shared
+                    .ctaphid_keep_alive_sender
+                    .lock(|ctaphid_keep_alive_sender| {
+                        ctaphid_keep_alive_sender.try_send(milliseconds)
+                    })
+                    .ok();
             }
         });
 
@@ -302,7 +298,7 @@ mod app {
         let mask = inten & intstat;
         if mask != 0 {
             for i in 0..5 {
-                if mask & (1 << 2 * i) != 0 {
+                if mask & (1 << (2 * i)) != 0 {
                     // debug!("EP{}OUT", i);
                 }
                 if mask & (1 << (2 * i + 1)) != 0 {
@@ -341,11 +337,8 @@ mod app {
                 .ccid_wait_extension_sender
                 .lock(|ccid_wait_extension_sender| {
                     c.local.ccid_wait_extension_receiver.try_recv().ok();
-                    match status {
-                        usbd_ccid::Status::ReceivedData(milliseconds) => {
-                            ccid_wait_extension_sender.try_send(milliseconds).ok();
-                        }
-                        _ => {}
+                    if let usbd_ccid::Status::ReceivedData(milliseconds) = status {
+                        ccid_wait_extension_sender.try_send(milliseconds).ok();
                     }
                 });
         }
@@ -370,11 +363,8 @@ mod app {
                 .ctaphid_keep_alive_sender
                 .lock(|ctaphid_keep_alive_sender| {
                     c.local.ctaphid_keep_alive_receiver.try_recv().ok();
-                    match status {
-                        usbd_ctaphid::types::Status::ReceivedData(milliseconds) => {
-                            ctaphid_keep_alive_sender.try_send(milliseconds).ok();
-                        }
-                        _ => {}
+                    if let usbd_ctaphid::types::Status::ReceivedData(milliseconds) = status {
+                        ctaphid_keep_alive_sender.try_send(milliseconds).ok();
                     }
                 });
         }

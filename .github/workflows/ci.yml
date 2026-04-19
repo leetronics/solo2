@@ -117,3 +117,36 @@ jobs:
           override: true
       - name: Build
         run: cargo build --release
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Install Linux build dependencies
+        shell: bash
+        run: |
+          apt-get update && apt-get install sudo
+          sudo apt update -y -qq && sudo apt install -y -qq llvm libc6-dev-i386 libclang-dev build-essential clang
+      - uses: fiam/arm-none-eabi-gcc@v1.0.4
+        with:
+          release: "9-2020-q2"
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: "1.94"
+          target: thumbv8m.main-none-eabi
+          override: true
+          components: rustfmt, clippy
+      - name: cargo fmt --check
+        run: cargo fmt --all --check
+      - name: cargo clippy (host)
+        run: cargo clippy --all-targets -- -D warnings
+      - name: cargo clippy (lpc55, board-lpcxpresso55)
+        working-directory: runners/lpc55
+        run: cargo clippy --release --features board-lpcxpresso55
+      - name: cargo clippy (lpc55, board-solo2)
+        working-directory: runners/lpc55
+        run: cargo clippy --release --features board-solo2
+      - name: cargo clippy (lpc55, provisioner)
+        working-directory: runners/lpc55
+        run: cargo clippy --release --features board-lpcxpresso55,provisioner-app,admin-app,provisioner-app/test-attestation

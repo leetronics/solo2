@@ -2,8 +2,4 @@
 
 pub mod device;
 
-pub use device::{
-    FM11NC08,
-    Configuration,
-    Register,
-};
+pub use device::{Configuration, FM11NC08, Register};

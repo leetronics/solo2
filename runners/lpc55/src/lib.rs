@@ -32,10 +32,11 @@ impl delog::Flusher for Flusher {
 // delog!(Delogger, 16*1024, 3*1024, Flusher);
 delog!(Delogger, 3, 2048, Flusher);
 
-#[cfg(any(feature = "log-defmt"))]
+#[cfg(feature = "log-defmt")]
 static FLUSHER: Flusher = Flusher {};
 
 // TODO: move board-specifics to BSPs
+#[allow(clippy::type_complexity)]
 pub fn init_board(
     device_peripherals: hal::raw::Peripherals,
 ) -> (
@@ -50,7 +51,7 @@ pub fn init_board(
     Option<clock_controller::DynamicClockController>,
     types::NfcWaitExtender,
 ) {
-    #[cfg(any(feature = "log-defmt"))]
+    #[cfg(feature = "log-defmt")]
     Delogger::init_default(delog::LevelFilter::Debug, &FLUSHER).ok();
 
     info!(
@@ -68,7 +69,7 @@ pub fn init_board(
     let config = initializer::Config {
         secure_firmware_version: Some(build_constants::CARGO_PKG_VERSION),
         nfc_enabled: true,
-        require_prince: require_prince,
+        require_prince,
         boot_to_bootrom: true,
         usb_config: Some(initializer::UsbConfig {
             manufacturer_name: "SoloKeys",
@@ -128,7 +129,7 @@ pub fn init_board(
     );
 
     #[cfg(feature = "provisioner-app")]
-    let store = everything.filesystem.store.clone();
+    let store = everything.filesystem.store;
     #[cfg(feature = "provisioner-app")]
     let internal_fs = everything.filesystem.internal_storage_fs;
 

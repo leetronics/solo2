@@ -3,11 +3,8 @@
 
 use core::time::Duration;
 
-use crate::hal::{
-    peripherals::rtc::Rtc,
-    typestates::init_state,
-};
-use crate::traits::buttons::{Press, Edge};
+use crate::hal::{peripherals::rtc::Rtc, typestates::init_state};
+use crate::traits::buttons::{Edge, Press};
 use crate::traits::rgb_led::{Intensities, RgbLed};
 use defmt::debug;
 use micromath::F32;
@@ -23,15 +20,14 @@ impl UserPresenceStatus {
         unsafe { WAITING = waiting };
     }
     pub fn waiting() -> bool {
-        unsafe{ WAITING }
+        unsafe { WAITING }
     }
 }
 
-
 pub struct UserInterface<BUTTONS, RGB>
 where
-BUTTONS: Press + Edge,
-RGB: RgbLed,
+    BUTTONS: Press + Edge,
+    RGB: RgbLed,
 {
     rtc: Rtc<init_state::Enabled>,
     buttons: Option<BUTTONS>,
@@ -42,8 +38,8 @@ RGB: RgbLed,
 
 impl<BUTTONS, RGB> UserInterface<BUTTONS, RGB>
 where
-BUTTONS: Press + Edge,
-RGB: RgbLed,
+    BUTTONS: Press + Edge,
+    RGB: RgbLed,
 {
     pub fn new(rtc: Rtc<init_state::Enabled>, _buttons: Option<BUTTONS>, rgb: Option<RGB>) -> Self {
         #[allow(unused_mut)]
@@ -58,7 +54,9 @@ RGB: RgbLed,
             }
         };
         Self {
-            rtc, buttons, rgb,
+            rtc,
+            buttons,
+            rgb,
             status: ui::Status::Idle,
             wink_until: Duration::new(0, 0),
         }
@@ -66,25 +64,52 @@ RGB: RgbLed,
 }
 
 // color codes Conor picked
-const BLACK: Intensities = Intensities { red: 0, green: 0, blue: 0 };
-const RED: Intensities = Intensities { red: u8::MAX, green: 0, blue: 0 };
-const GREEN: Intensities = Intensities { red: 0, green: 15, blue: 0x02 };
-const BLUE: Intensities = Intensities { red: 0, green: 0, blue: 55 };
-const TEAL: Intensities = Intensities { red: 0, green: 55, blue: 20 };
+const BLACK: Intensities = Intensities {
+    red: 0,
+    green: 0,
+    blue: 0,
+};
+const RED: Intensities = Intensities {
+    red: u8::MAX,
+    green: 0,
+    blue: 0,
+};
+const GREEN: Intensities = Intensities {
+    red: 0,
+    green: 15,
+    blue: 0x02,
+};
+const BLUE: Intensities = Intensities {
+    red: 0,
+    green: 0,
+    blue: 55,
+};
+const TEAL: Intensities = Intensities {
+    red: 0,
+    green: 55,
+    blue: 20,
+};
 #[allow(dead_code)]
-const ORANGE: Intensities = Intensities { red: u8::MAX, green: 0x7e, blue: 0 };
+const ORANGE: Intensities = Intensities {
+    red: u8::MAX,
+    green: 0x7e,
+    blue: 0,
+};
 #[allow(dead_code)]
-const WHITE: Intensities = Intensities { red: u8::MAX, green: u8::MAX, blue: u8::MAX };
+const WHITE: Intensities = Intensities {
+    red: u8::MAX,
+    green: u8::MAX,
+    blue: u8::MAX,
+};
 
-impl<BUTTONS, RGB> trussed::platform::UserInterface for UserInterface<BUTTONS,RGB>
+impl<BUTTONS, RGB> trussed::platform::UserInterface for UserInterface<BUTTONS, RGB>
 where
-BUTTONS: Press + Edge,
-RGB: RgbLed,
+    BUTTONS: Press + Edge,
+    RGB: RgbLed,
 {
     fn check_user_presence(&mut self) -> consent::Level {
         match &mut self.buttons {
             Some(buttons) => {
-
                 // important to read state before checking for edge,
                 // since reading an edge could clear the state.
                 let state = buttons.state();
@@ -110,7 +135,6 @@ RGB: RgbLed,
     }
 
     fn set_status(&mut self, status: ui::Status) {
-
         self.status = status;
         debug!("status set to {:?}", defmt::Debug2Format(&status));
 
@@ -137,46 +161,62 @@ RGB: RgbLed,
         let uptime = self.uptime().as_millis() as u32;
 
         if let Some(rgb) = self.rgb.as_mut() {
-
             let waiting_for_user = self.status == ui::Status::WaitingForUserPresence;
             let processing = self.status == ui::Status::Processing;
             let winking = uptime < self.wink_until.as_millis() as u32;
-            let any_button = self.buttons.as_mut()
+            let any_button = self
+                .buttons
+                .as_mut()
                 .map(|buttons| buttons.state())
                 .map(|state| state.a || state.b || state.middle)
                 .unwrap_or(false);
 
             let color = if waiting_for_user {
-
                 // breathe fast, in blue
 
                 let amplitude = calculate_amplitude(uptime, 2, 4, 75);
-                Intensities { red: 0, green: 0, blue: amplitude }
-
+                Intensities {
+                    red: 0,
+                    green: 0,
+                    blue: amplitude,
+                }
             } else if processing {
-                let on = (((F32(uptime as f32) / 250.0).round().0 as u32) % 2) != 0;
-                if on { GREEN } else { BLACK }
+                let on = !((F32(uptime as f32) / 250.0).round().0 as u32).is_multiple_of(2);
+                if on {
+                    GREEN
+                } else {
+                    BLACK
+                }
             } else if winking {
-
                 // blink rapidly
 
-                let on = (((F32(uptime as f32) / 250.0).round().0 as u32) % 2) != 0;
-                if on { BLUE } else { BLACK }
+                let on = !((F32(uptime as f32) / 250.0).round().0 as u32).is_multiple_of(2);
+                if on {
+                    BLUE
+                } else {
+                    BLACK
+                }
                 // if on { WHITE } else { BLACK }
-
             } else {
-
                 // regular behaviour: breathe slowly
 
                 let amplitude = calculate_amplitude(uptime, 10, 4, 64);
 
                 if !any_button {
                     // Use green if no button is pressed.
-                    Intensities { red: 0, green: amplitude, blue: 0 }
+                    Intensities {
+                        red: 0,
+                        green: amplitude,
+                        blue: 0,
+                    }
                     // Intensities { red: amplitude, green: 0, blue: 0 }
                 } else {
                     // Use blue if button is pressed.
-                    Intensities { red: 0, green: 0, blue: amplitude }
+                    Intensities {
+                        red: 0,
+                        green: 0,
+                        blue: amplitude,
+                    }
                 }
             };
 
@@ -185,7 +225,7 @@ RGB: RgbLed,
             // crate::logger::info!("time: {}", time).ok();
             // debug_now!("amp: {:08X}", amplitude);
             // crate::logger::info!("color: {}", hex!(color)).ok();
-            rgb.set(color.into());
+            rgb.set(color);
         }
     }
 
@@ -197,16 +237,20 @@ RGB: RgbLed,
         debug!("winking for {:?}", duration);
         self.wink_until = self.uptime() + duration;
     }
-
 }
 
-fn calculate_amplitude(now_millis: u32, period_secs: u8, min_amplitude: u8, max_amplitude: u8) -> u8 {
+fn calculate_amplitude(
+    now_millis: u32,
+    period_secs: u8,
+    min_amplitude: u8,
+    max_amplitude: u8,
+) -> u8 {
     let period = Duration::new(period_secs as u64, 0).as_millis() as u32;
-    let tau = F32(6.283185);
+    let tau = F32(core::f32::consts::TAU);
     let angle = F32(now_millis as f32) * tau / (period as f32);
     let rel_amplitude = max_amplitude - min_amplitude;
 
     // sinoidal wave on top of a baseline brightness
-    let amplitude = min_amplitude + (angle.sin().abs() * (rel_amplitude as f32)).floor().0 as u8;
-    amplitude
+
+    min_amplitude + (angle.sin().abs() * (rel_amplitude as f32)).floor().0 as u8
 }

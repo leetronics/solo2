@@ -263,6 +263,7 @@ impl Initializer {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn try_enable_fm11nc08<T: Ctimer<hal::Enabled>>(
         &mut self,
         clocks: &Clocks,
@@ -320,10 +321,10 @@ impl Initializer {
             clocks,
             iocon,
             gpio,
-            _clock: (),
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn initialize_basic(
         &mut self,
         clock_stage: &mut stages::Clock,
@@ -345,11 +346,10 @@ impl Initializer {
         #[allow(unused_mut)]
         let mut adc = Some(if self.is_nfc_passive {
             // important to start Adc early in passive mode
-            hal::Adc::from(adc)
-                .configure(board::clock_controller::DynamicClockController::adc_configuration())
+            adc.configure(board::clock_controller::DynamicClockController::adc_configuration())
                 .enabled(pmc, syscon)
         } else {
-            hal::Adc::from(adc).enabled(pmc, syscon)
+            adc.enabled(pmc, syscon)
         });
 
         let mut delay_timer =
@@ -390,7 +390,7 @@ impl Initializer {
             #[cfg(feature = "board-solo2")]
             let three_buttons = {
                 // TODO this should get saved somewhere to be released later.
-                let mut dma = hal::Dma::from(_dma).enabled(syscon);
+                let mut dma = _dma.enabled(syscon);
 
                 board::ThreeButtons::new(
                     adc.take().unwrap(),
@@ -473,11 +473,8 @@ impl Initializer {
             .split()
             .expect("could not setup iso14443 ApduInterchange");
 
-        if nfc_chip.is_some() {
-            iso14443 = Some(nfc_device::Iso14443::new(
-                nfc_chip.unwrap(),
-                contactless_requester,
-            ))
+        if let Some(chip) = nfc_chip {
+            iso14443 = Some(nfc_device::Iso14443::new(chip, contactless_requester))
         } else if self.is_nfc_passive {
             info!("Shouldn't get passive signal when there's no chip!");
         }
@@ -583,7 +580,7 @@ impl Initializer {
 
             // Only 16 bits, so take the upper bits of our semver
             let device_release = ((build_constants::CARGO_PKG_VERSION_MAJOR as u16) << 8)
-                | (build_constants::CARGO_PKG_VERSION_MINOR as u16);
+                | build_constants::CARGO_PKG_VERSION_MINOR;
 
             // our composite USB device
             let product_string = match usb_config.product_name {
@@ -647,7 +644,7 @@ impl Initializer {
         #[allow(unused_mut)]
         let mut rng = rng.enabled(syscon);
 
-        let prince = prince.enabled(&mut rng);
+        let prince = prince.enabled(&rng);
         prince.disable_all_region_2();
 
         let flash_gordon = Some(FlashGordon::new(flash.enabled(syscon)));
@@ -858,6 +855,7 @@ impl Initializer {
     }
 
     #[inline(never)]
+    #[allow(clippy::too_many_arguments)]
     pub fn initialize_all(
         &mut self,
         iocon: hal::Iocon<Unknown>,
@@ -919,7 +917,7 @@ impl Initializer {
         );
 
         stages::All {
-            trussed: trussed,
+            trussed,
             filesystem: filesystem_stage,
             usb: usb_stage,
             interfaces: interfaces_stage,
@@ -963,6 +961,6 @@ impl Initializer {
 
     /// See if LPC55 will be in NFC passive operation.  Requires first initialization stage have been done.
     pub fn is_in_passive_operation(&self, _clock_stage: &stages::Clock) -> bool {
-        return self.is_nfc_passive;
+        self.is_nfc_passive
     }
 }
